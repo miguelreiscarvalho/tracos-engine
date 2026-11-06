@@ -1,0 +1,122 @@
+﻿codigo_unicode,caractere,alvo,roundtrip,reconhecimento_manuscrito,amostras_locais
+U+0020, ,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0021,!,ASCII imprimível,verificado no teste do repertório,passou amostras locais; generalização pendente,3
+U+0022,"""",ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0023,#,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0024,$,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0025,%,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0026,&,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0027,',ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0028,(,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0029,),ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+002A,*,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+002B,+,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+002C,",",ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+002D,-,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+002E,.,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+002F,/,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0030,0,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0031,1,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0032,2,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0033,3,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0034,4,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0035,5,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0036,6,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0037,7,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0038,8,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0039,9,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+003A,:,ASCII imprimível,verificado no teste do repertório,passou amostras locais; generalização pendente,1
+U+003B,;,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+003C,<,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+003D,=,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+003E,>,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+003F,?,ASCII imprimível,verificado no teste do repertório,passou amostras locais; generalização pendente,4
+U+0040,@,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0041,A,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0042,B,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0043,C,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0044,D,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0045,E,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0046,F,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0047,G,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0048,H,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0049,I,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+004A,J,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+004B,K,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+004C,L,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+004D,M,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+004E,N,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+004F,O,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0050,P,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0051,Q,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0052,R,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0053,S,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0054,T,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0055,U,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0056,V,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0057,W,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0058,X,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0059,Y,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+005A,Z,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+005B,[,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+005C,\,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+005D,],ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+005E,^,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+005F,_,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0060,`,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0061,a,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0062,b,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0063,c,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0064,d,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0065,e,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0066,f,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0067,g,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0068,h,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0069,i,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+006A,j,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+006B,k,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+006C,l,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+006D,m,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+006E,n,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+006F,o,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0070,p,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0071,q,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0072,r,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0073,s,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0074,t,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0075,u,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0076,v,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0077,w,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0078,x,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+0079,y,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+007A,z,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+007B,{,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+007C,|,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+007D,},ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+007E,~,ASCII imprimível,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00C1,Á,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00C0,À,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00C2,Â,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00C3,Ã,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00C9,É,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00CA,Ê,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00CD,Í,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00D3,Ó,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00D4,Ô,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00D5,Õ,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00DA,Ú,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00DC,Ü,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00C7,Ç,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00E1,á,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00E0,à,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00E2,â,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00E3,ã,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00E9,é,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00EA,ê,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00ED,í,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00F3,ó,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00F4,ô,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00F5,õ,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00FA,ú,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00FC,ü,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0
+U+00E7,ç,pt-BR,verificado no teste do repertório,não avaliado sistematicamente,0

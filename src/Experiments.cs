@@ -72,6 +72,25 @@ namespace Tracos {
                 Check(moved.X-placement.X==200&&moved.Y-placement.Y==300&&moved.ScaleX==placement.ScaleX,"layout independe de posição zoom e rolagem");
                 var state=Storage.Decode(Storage.Encode(page));
                 Check(state.Regions[0].Closed&&state.Regions[0].Traces.Count==3,"persistência de blocos fechados e acento original");
+                var question=new InkDocument();var hook=Spatial.Append(question,Trace(100,100,110,97,120,105,110,116,110,125));hook.Text="2";
+                var questionDot=Spatial.Append(question,Trace(109,134,111,136));
+                Check(questionDot==hook&&hook.Traces.Count==2,"interrogação reúne corpo e ponto inferior");
+                var exclamation=new InkDocument();var stem=Spatial.Append(exclamation,Trace(200,100,201,125));stem.Closed=true;
+                Check(Spatial.Append(exclamation,Trace(198,138,201,140))==stem,"exclamação reúne ponto mesmo após hipótese encerrada");
+                var reverse=new InkDocument();var dotFirst=Spatial.Append(reverse,Trace(100,140,102,142));
+                Check(Spatial.Append(reverse,Trace(101,100,102,130))==dotFirst,"símbolo reúne ponto desenhado antes do corpo");
+                var colon=new InkDocument();var upper=Spatial.Append(colon,Trace(300,100,304,103));
+                Check(Spatial.Append(colon,Trace(301,116,304,119))==upper,"dois pontos não viram regiões separadas");
+                Check(PunctuationCandidates.Select("°",new[]{"°",":"},upper.Traces)==":","dois pontos seleciona alternativa nativa compatível");
+                Check(PunctuationCandidates.Select("°",new[]{"°","o"},upper.Traces)=="°","não inventa dois pontos ausentes nas alternativas");
+                Check(PunctuationCandidates.Select("oo",new[]{"oo",":"},new[]{Trace(0,0,4,3),Trace(18,0,22,3)})=="oo","pontos horizontais não forçam dois pontos");
+                var cedillaDoc=new InkDocument();var cedillaWord=Spatial.Append(cedillaDoc,Trace(100,100,120,103,116,130));
+                Spatial.Append(cedillaDoc,Trace(125,100,130,125));cedillaWord.Closed=true;
+                Check(Spatial.Append(cedillaDoc,Trace(106,133,112,137,104,141))==cedillaWord,"cedilha inferior preservada no caractere original");
+                var distantSymbol=Spatial.Append(question,Trace(190,135,194,138));
+                Check(distantSymbol!=hook,"ponto distante não altera símbolo anterior");
+                var coverage=new InkDocument();coverage.Regions.Add(new Region {Text=CharacterCoverage.Target});
+                Check(CharacterCoverage.PrintableAscii.Length==95&&Storage.Decode(Storage.Encode(coverage)).Regions[0].Text==CharacterCoverage.Target,"95 ASCII imprimíveis e acentos pt-BR persistem sem perda");
                 var delayed=new BlockingEngine();var finished=new ManualResetEvent(false);int completions=0;
                 using(var queue=new RecognitionScheduler(delayed,c=>{if(Interlocked.Increment(ref completions)==2)finished.Set();})){
                     queue.Enqueue(new Work {Ticket=new Ticket{Region="r",Revision=1},Traces=new List<InkTrace>{isolated}});
@@ -141,6 +160,7 @@ namespace Tracos {
             if(args.Contains("--test"))return Experiments.Test();
             if(args.Contains("--experiment"))return Experiments.Run();
             if(args.Length==2&&args[0]=="--replay")return Experiments.Replay(args[1]);
+            if(args.Length==2&&args[0]=="--evaluate-symbols")return SymbolEvaluation.Run(args[1]);
             return Launch();
         }
         static int Launch(){var app=new System.Windows.Application();return app.Run(new Editor());}

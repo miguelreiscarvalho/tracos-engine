@@ -1,6 +1,6 @@
 # Resultados observados
 
-Atualização de posicionamento: ver [correção após vídeo](CORRECAO_POSICIONAMENTO.md). A revisão atual passa 27 verificações; os 19 testes e a política por linha descritos abaixo registram o baseline inicial.
+Atualizações: [posicionamento](CORRECAO_POSICIONAMENTO.md) e [pontuação/repertório](PONTUACAO_E_COBERTURA.md). A revisão atual passa 37 verificações e acertou oito exemplos de pontuação do segundo vídeo no replay local. Os 19 testes e a política por linha descritos abaixo registram o baseline inicial, não a revisão atual.
 
 Execução local em 06/11/2026. Sem histórico de outras conversas. Não foram baixados pesos, instalados modelos ou treinadas redes.
 

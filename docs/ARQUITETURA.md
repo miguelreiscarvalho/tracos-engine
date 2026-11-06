@@ -1,5 +1,7 @@
 # Decisão e plano do protótipo
 
+Atualização de pontuação: `Spatial.Find` agora reúne partes verticais de símbolos compactos e permite pequenos complementos inferiores para cedilha. O adaptador normaliza NFC e resolve apenas a ambiguidade de dois pontos documentada em [pontuação/repertório](PONTUACAO_E_COBERTURA.md); o núcleo não filtra a saída para ASCII nem afirma cobertura de reconhecimento completa.
+
 ## Correção após análise do vídeo do usuário
 
 O comportamento inicial descrito abaixo foi revisto em 06/11/2026: uma região não representa mais uma linha inteira. `Spatial.Append` mantém um bloco local ativo, encerra blocos anteriores ao detectar lacuna/mudança de linha e permite pequenos complementos sobrepostos. Margem horizontal é `max(9 DIP, 0,4 × altura estimada)`, com teste de sobreposição vertical. Acentos/complementos são limitados por tamanho, posição e sobreposição; não são gestos de edição.

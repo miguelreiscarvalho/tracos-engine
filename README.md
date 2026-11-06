@@ -39,7 +39,21 @@ A folha é fixa (2400 × 1800 DIPs), com uma página e camada no protótipo. Tex
 .\build\Tracos.Tests.exe --experiment
 ```
 
-O primeiro comando executa 27 verificações, incluindo posicionamento local, proteção de palavras anteriores, coalescência assíncrona e rejeição de resultados atrasados. O segundo chama o **motor real** nas políticas A/B/C e grava `local\experiments.csv`. As entradas são polilinhas sintéticas em `src/Experiments.cs`, não amostras humanas ou um benchmark de precisão.
+O primeiro comando executa 37 verificações, incluindo pontuação com múltiplos traços, acentos/cedilha, preservação de caracteres, posicionamento local, proteção de palavras anteriores e concorrência. O segundo chama o **motor real** nas políticas A/B/C e grava `local\experiments.csv`. As entradas são polilinhas sintéticas em `src/Experiments.cs`, não amostras humanas ou um benchmark de precisão.
+
+## Pontuação e repertório
+
+Corpo e ponto de interrogação/exclamação, pontos empilhados e pequenos complementos inferiores agora podem pertencer ao mesmo bloco, inclusive se o corpo já foi convertido. O reconhecedor recebe o símbolo completo. Para dois pontos, uma regra restrita resolve `°` versus `:` quando há dois traços pequenos empilhados e `:` foi devolvido pelo motor como alternativa; não inventa candidatos nem converte posições em confiança.
+
+O alvo documentado é **ASCII imprimível + acentos pt-BR em Unicode**, não os códigos de controle ASCII. Suporte a armazenamento/exibição não garante acurácia de reconhecimento. Os oito exemplos de `?`, `!` e `:` do segundo vídeo passaram no replay; cobertura manuscrita de todo o repertório ainda está pendente. Resultados e riscos: [pontuação e cobertura](docs/PONTUACAO_E_COBERTURA.md).
+
+Para avaliar amostras rotuladas próprias:
+
+```powershell
+.\build\Tracos.Tests.exe --evaluate-symbols caminho\amostras.json
+```
+
+Formato: lista de objetos com `Name`, `Expected` e `Traces` (mesma representação de traços do documento). O resultado vai para `local\symbol-evaluation.csv`, comparando traços isolados, motor nativo com traços completos e agrupamento corrigido. O arquivo não substitui o documento aberto.
 
 ## Posicionamento local
 

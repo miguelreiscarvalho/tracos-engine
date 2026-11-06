@@ -80,6 +80,27 @@ namespace Tracos {
             var heights=region.Traces.Select(t=>t.Box.Height).Where(h=>h>=8).OrderBy(h=>h).ToArray();
             return heights.Length==0?20:Math.Max(12,Math.Min(80,heights[(heights.Length-1)*3/4]));
         }
+        public static bool IsDot(InkTrace trace) {
+            var box=trace.Box;
+            return box.Right-box.X<=10 && box.Height<=10;
+        }
+        static bool IsVerticalSymbolPart(Region region,InkTrace trace) {
+            // A dot above/below a compact body belongs to the same tentative
+            // symbol (?!:; or dotted letter), regardless of the body's current
+            // recognition. Words are not pulled into punctuation clusters.
+            if(region.Traces.Count!=1)return false;
+            var previous=region.Traces[0];
+            if(!IsDot(previous)&&!IsDot(trace))return false;
+            var dot=IsDot(trace)?trace.Box:previous.Box;
+            var body=IsDot(trace)?previous.Box:trace.Box;
+            double height=Math.Max(20,body.Height);
+            if(body.Height>80 || body.Right-body.X>Math.Max(12,body.Height*1.1))return false;
+            double gap=Math.Max(dot.Y-body.Bottom,body.Y-dot.Bottom);
+            double dotCenter=(dot.X+dot.Right)/2;
+            return gap>=0 && gap<=Math.Max(12,height*.8) &&
+                dotCenter>=body.X-Math.Max(4,height*.25) &&
+                dotCenter<=body.Right+Math.Max(4,height*.25);
+        }
         static bool IsLateMark(Region region, Bounds mark) {
             var box=region.Box;
             double height=WritingHeight(region);
@@ -91,10 +112,16 @@ namespace Tracos {
             bool completion=mark.Height<=height*1.8 && mark.Right-mark.X<=height*.75 &&
                 (mark.Y+mark.Bottom)/2>=box.Y-height*.2 &&
                 (mark.Y+mark.Bottom)/2<=box.Bottom+height*.2;
-            return accent||completion;
+            bool cedilla=mark.Height<=height*.45 && mark.Right-mark.X<=height*.7 &&
+                mark.Y>=box.Bottom-height*.15 && mark.Y<=box.Bottom+height*.35;
+            return accent||completion||cedilla;
         }
         public static Region Find(InkDocument d, InkTrace trace) {
             var b=trace.Box;
+            var symbol=d.Regions.Where(r=>!r.Manual&&IsVerticalSymbolPart(r,trace))
+                .OrderBy(r=>Math.Abs((b.Y+b.Bottom)-(r.Box.Y+r.Box.Bottom))+Math.Abs((b.X+b.Right)-(r.Box.X+r.Box.Right)))
+                .FirstOrDefault();
+            if(symbol!=null)return symbol;
             // Prefer an actual accent overlap over proximity to another word.
             var marked=d.Regions.Where(r=>!r.Manual&&IsLateMark(r,b))
                 .OrderBy(r=>Math.Abs((b.X+b.Right)-(r.Box.X+r.Box.Right))).FirstOrDefault();

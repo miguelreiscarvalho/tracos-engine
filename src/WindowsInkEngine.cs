@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Text;
 using Microsoft.Ink;
 
 namespace Tracos {
@@ -15,6 +16,8 @@ namespace Tracos {
         InkAnswer Recognize(IList<InkTrace> traces, int language);
     }
     public sealed class WindowsInkEngine : IRecognitionEngine {
+        readonly bool resolvePunctuation;
+        public WindowsInkEngine(bool resolvePunctuation=true){this.resolvePunctuation=resolvePunctuation;}
         public InkAnswer Recognize(IList<InkTrace> traces, int language) {
             {
                 var recognizers = new Recognizers();
@@ -34,8 +37,10 @@ namespace Tracos {
                     RecognitionStatus status;
                     var result = context.Recognize(out status);
                     if (status != RecognitionStatus.NoError || result == null) return new InkAnswer {Engine=chosen.Name};
-                    return new InkAnswer {Text=result.TopString, Engine=chosen.Name,
-                        Alternatives=result.GetAlternatesFromSelection().Cast<RecognitionAlternate>().Take(5).Select(a=>a.ToString()).ToArray()};
+                    var alternatives=result.GetAlternatesFromSelection().Cast<RecognitionAlternate>().Take(10).Select(a=>a.ToString().Normalize(NormalizationForm.FormC)).ToArray();
+                    var top=result.TopString.Normalize(NormalizationForm.FormC);
+                    return new InkAnswer {Text=resolvePunctuation?PunctuationCandidates.Select(top,alternatives,traces):top, Engine=chosen.Name,
+                        Alternatives=alternatives};
                 }
             }
         }
