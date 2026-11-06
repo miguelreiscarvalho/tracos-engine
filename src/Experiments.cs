@@ -91,6 +91,33 @@ namespace Tracos {
                 Check(distantSymbol!=hook,"ponto distante não altera símbolo anterior");
                 var coverage=new InkDocument();coverage.Regions.Add(new Region {Text=CharacterCoverage.Target});
                 Check(CharacterCoverage.PrintableAscii.Length==95&&Storage.Decode(Storage.Encode(coverage)).Regions[0].Text==CharacterCoverage.Target,"95 ASCII imprimíveis e acentos pt-BR persistem sem perda");
+                var snapshots=DocumentSnapshots.Copy(page);var sourceCount=page.Regions[0].Traces.Count;
+                snapshots.Regions[0].Text="editado";snapshots.Regions[0].Traces.RemoveAt(0);
+                Check(page.Regions[0].Text=="casa"&&page.Regions[0].Traces.Count==sourceCount,"snapshots isolam texto e listas sem copiar todos os pontos");
+                var boundsBefore=word.Box;Spatial.Append(page,Trace(108,80,112,82));
+                Check(word.Box.Y<boundsBefore.Y,"bounds atualizam após inclusão de acento");
+                var cursive=new InkDocument();var cursiveWord=Spatial.Append(cursive,Trace(100,100,150,125));
+                foreach(int dx in new[]{0,5,10,15,20})Spatial.Append(cursive,Trace(110+dx,113,113+dx,121));
+                Check(Spatial.Append(cursive,Trace(135,88,143,99))==cursiveWord,"traços curtos não isolam til de palavra cursiva");
+                var timing=new RecognitionTiming();timing.Started(0);timing.Ended(100);
+                Check(!timing.Ready(260,false,false),"pausa de 160 ms não converte palavra incompleta");
+                timing.Started(400);timing.Ended(550);
+                Check(!timing.Ready(1000,false,false),"novo traço reinicia espera de conversão");
+                Check(!timing.Ready(1600,false,true)&&timing.Ready(2200,false,true),"caneta próxima ganha tempo para acentos");
+                Check(timing.Ready(1200,true,false),"bloco encerrado pode reconhecer após afastamento");
+                timing.Started(2300);Check(!timing.Ready(10000,true,false)&&!timing.CanSave(10000),"contato ativo bloqueia conversão e captura de autosave");
+                var persistenceStarted=new ManualResetEvent(false);var allowPersistence=new ManualResetEvent(false);var savedTexts=new List<string>();
+                using(var writer=new BackgroundPersistence(snapshot=>{persistenceStarted.Set();if(!allowPersistence.WaitOne(3000))throw new TimeoutException();lock(savedTexts)savedTexts.Add(snapshot.Font);})){
+                    writer.Enqueue(new InkDocument {Font="first"});Check(persistenceStarted.WaitOne(3000),"autosave começa fora da thread chamadora");
+                    writer.Enqueue(new InkDocument {Font="intermediate"});writer.Enqueue(new InkDocument {Font="latest"});
+                    allowPersistence.Set();Check(writer.Flush(3000),"autosave aguarda gravação consistente no fechamento");
+                    lock(savedTexts)Check(savedTexts.SequenceEqual(new[]{"first","latest"}),"autosave coalesce versões pendentes");
+                }
+                using(var failedWriter=new BackgroundPersistence(snapshot=>{throw new IOException("simulated write failure");})){
+                    failedWriter.Enqueue(new InkDocument());bool reported=false;
+                    try{failedWriter.Flush(3000);}catch(InvalidOperationException){reported=true;}
+                    Check(reported&&failedWriter.LastError!=null,"falha de autosave é reportada sem simular sucesso");
+                }
                 var delayed=new BlockingEngine();var finished=new ManualResetEvent(false);int completions=0;
                 using(var queue=new RecognitionScheduler(delayed,c=>{if(Interlocked.Increment(ref completions)==2)finished.Set();})){
                     queue.Enqueue(new Work {Ticket=new Ticket{Region="r",Revision=1},Traces=new List<InkTrace>{isolated}});
@@ -107,6 +134,14 @@ namespace Tracos {
                     queue.Enqueue(new Work{Ticket=captured,Traces=new List<InkTrace>{isolated}});
                     Check(delayed2.Started.WaitOne(3000),"reconhecimento pendente durante edição");guardRegion.Revision++;delayed2.Release.Set();
                     Check(rejected.WaitOne(3000)&&!applied,"resultado atrasado não aplicado após edição e nova sessão");
+                }
+                var pausedEngine=new BlockingEngine();pausedEngine.Release.Set();var resumed=new ManualResetEvent(false);
+                using(var queue=new RecognitionScheduler(pausedEngine,c=>resumed.Set())){
+                    queue.SetPaused(true);queue.Enqueue(new Work{Ticket=new Ticket {Region="obsolete"},Traces=new List<InkTrace>{isolated,accent}});queue.Cancel("obsolete");
+                    queue.Enqueue(new Work{Ticket=new Ticket {Region="paused"},Traces=new List<InkTrace>{isolated}});
+                    Check(!pausedEngine.Started.WaitOne(60),"fila não inicia motor enquanto caneta escreve");
+                    queue.SetPaused(false);Check(resumed.WaitOne(3000),"fila retoma depois do contato");
+                    lock(pausedEngine.Counts)Check(pausedEngine.Counts.SequenceEqual(new[]{1}),"revisão cancelada não consome chamada do motor");
                 }
                 return 0;
             } catch(Exception e){Console.WriteLine(e);return 1;}
@@ -161,6 +196,7 @@ namespace Tracos {
             if(args.Contains("--experiment"))return Experiments.Run();
             if(args.Length==2&&args[0]=="--replay")return Experiments.Replay(args[1]);
             if(args.Length==2&&args[0]=="--evaluate-symbols")return SymbolEvaluation.Run(args[1]);
+            if(args.Length==2&&args[0]=="--profile")return PerformanceEvaluation.Run(args[1]);
             return Launch();
         }
         static int Launch(){var app=new System.Windows.Application();return app.Run(new Editor());}

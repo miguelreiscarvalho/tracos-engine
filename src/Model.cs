@@ -18,14 +18,26 @@ namespace Tracos {
         [DataMember] public string Id = Guid.NewGuid().ToString();
         [DataMember] public List<InkPoint> Points = new List<InkPoint>();
         [DataMember] public string Device = "unknown";
-        public Bounds Box { get { return Bounds.Of(Points); } }
+        int cachedCount=-1;
+        Bounds cachedBounds;
+        public Bounds Box { get {
+            if(cachedCount!=Points.Count){cachedBounds=Bounds.Of(Points);cachedCount=Points.Count;}
+            return cachedBounds;
+        } }
     }
     public struct Bounds {
         public double X,Y,Right,Bottom;
         public double Height { get { return Bottom-Y; } }
         public static Bounds Of(IEnumerable<InkPoint> points) {
-            var p=points.ToArray();
-            return p.Length==0 ? new Bounds() : new Bounds {X=p.Min(v=>v.X),Y=p.Min(v=>v.Y),Right=p.Max(v=>v.X),Bottom=p.Max(v=>v.Y)};
+            bool any=false;var box=new Bounds();
+            foreach(var p in points){if(!any){box=new Bounds{X=p.X,Y=p.Y,Right=p.X,Bottom=p.Y};any=true;}
+                else{box.X=Math.Min(box.X,p.X);box.Y=Math.Min(box.Y,p.Y);box.Right=Math.Max(box.Right,p.X);box.Bottom=Math.Max(box.Bottom,p.Y);}}
+            return box;
+        }
+        public static Bounds Union(IEnumerable<Bounds> bounds) {
+            bool any=false;var box=new Bounds();
+            foreach(var b in bounds){if(!any){box=b;any=true;}else{box.X=Math.Min(box.X,b.X);box.Y=Math.Min(box.Y,b.Y);box.Right=Math.Max(box.Right,b.Right);box.Bottom=Math.Max(box.Bottom,b.Bottom);}}
+            return box;
         }
     }
     [DataContract] public class Region {
@@ -40,7 +52,7 @@ namespace Tracos {
         [DataMember] public double AnchorX;
         [DataMember] public double AnchorY;
         [DataMember] public bool Closed;
-        public Bounds Box { get { return Bounds.Of(Traces.SelectMany(t=>t.Points)); } }
+        public Bounds Box { get { return Bounds.Union(Traces.Select(t=>t.Box)); } }
     }
     [DataContract] public class InkDocument {
         [DataMember] public int Version=1;
@@ -52,6 +64,7 @@ namespace Tracos {
         [DataMember] public List<Region> Regions=new List<Region>();
     }
     public static class Storage {
+        static readonly object saveGate=new object();
         public static byte[] Encode(InkDocument d) {using(var m=new MemoryStream()){new DataContractJsonSerializer(typeof(InkDocument)).WriteObject(m,d);return m.ToArray();}}
         public static InkDocument Decode(byte[] bytes) {
             using(var m=new MemoryStream(bytes)) {
@@ -62,23 +75,42 @@ namespace Tracos {
             }
         }
         public static void Save(string path, InkDocument d) {
+            lock(saveGate){
             var temp=path+".tmp";
-            var bytes=Encode(d);
-            using(var f=new FileStream(temp,FileMode.Create,FileAccess.Write,FileShare.None)){f.Write(bytes,0,bytes.Length);f.Flush(true);}
+            using(var f=new FileStream(temp,FileMode.Create,FileAccess.Write,FileShare.None)){
+                new DataContractJsonSerializer(typeof(InkDocument)).WriteObject(f,d);
+                f.Flush(true);
+            }
             if(File.Exists(path)) File.Replace(temp,path,path+".bak"); else File.Move(temp,path);
+            }
+        }
+    }
+    public static class DocumentSnapshots {
+        // Completed traces are append-only values in the editor: after pen-up
+        // neither their points nor device metadata are mutated. Snapshots own
+        // their region/list containers and share those completed trace values.
+        // Active ink is never inserted into a document until pen-up.
+        public static InkDocument Copy(InkDocument d) {
+            return new InkDocument {Version=d.Version,Id=d.Id,Page=d.Page,Layer=d.Layer,Font=d.Font,FontSize=d.FontSize,
+                Regions=d.Regions.Select(r=>new Region {Id=r.Id,Revision=r.Revision,Text=r.Text,
+                    Alternatives=(string[])r.Alternatives.Clone(),Manual=r.Manual,Suppressed=r.Suppressed,
+                    RecognizedCount=r.RecognizedCount,AnchorX=r.AnchorX,AnchorY=r.AnchorY,Closed=r.Closed,
+                    Traces=new List<InkTrace>(r.Traces)}).ToList()};
         }
     }
     public sealed class History {
-        readonly Stack<byte[]> undo=new Stack<byte[]>(),redo=new Stack<byte[]>();
-        public void Record(InkDocument d){undo.Push(Storage.Encode(d));redo.Clear();}
-        public InkDocument Undo(InkDocument d){if(undo.Count==0)return d;redo.Push(Storage.Encode(d));return Storage.Decode(undo.Pop());}
-        public InkDocument Redo(InkDocument d){if(redo.Count==0)return d;undo.Push(Storage.Encode(d));return Storage.Decode(redo.Pop());}
+        readonly Stack<InkDocument> undo=new Stack<InkDocument>(),redo=new Stack<InkDocument>();
+        public void Record(InkDocument d){undo.Push(DocumentSnapshots.Copy(d));redo.Clear();}
+        public InkDocument Undo(InkDocument d){if(undo.Count==0)return d;redo.Push(DocumentSnapshots.Copy(d));return undo.Pop();}
+        public InkDocument Redo(InkDocument d){if(redo.Count==0)return d;undo.Push(DocumentSnapshots.Copy(d));return redo.Pop();}
     }
     public static class Spatial {
         // A region is a local word-sized writing group, not an entire line.
         public static double WritingHeight(Region region) {
-            var heights=region.Traces.Select(t=>t.Box.Height).Where(h=>h>=8).OrderBy(h=>h).ToArray();
-            return heights.Length==0?20:Math.Max(12,Math.Min(80,heights[(heights.Length-1)*3/4]));
+            // Short crossbars must not shrink the estimated height of a cursive
+            // word and strand a later tilde/cedilla outside its revision window.
+            double height=region.Box.Height;
+            return height<8?20:Math.Max(12,Math.Min(80,height));
         }
         public static bool IsDot(InkTrace trace) {
             var box=trace.Box;

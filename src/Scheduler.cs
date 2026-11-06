@@ -17,7 +17,7 @@ namespace Tracos {
         readonly Thread thread;
         readonly IRecognitionEngine engine;
         readonly Action<Completion> completed;
-        bool stopped;
+        bool stopped,paused;
         public RecognitionScheduler(IRecognitionEngine engine,Action<Completion> completed) {
             this.engine=engine;this.completed=completed;
             thread=new Thread(Run){IsBackground=true,Name="Reconhecimento STA"};
@@ -25,12 +25,14 @@ namespace Tracos {
         }
         public void Enqueue(Work work){lock(pending){if(stopped)return;pending[work.Ticket.Region]=work;ready.Set();}}
         public void Clear(){lock(pending)pending.Clear();}
+        public void Cancel(string region){lock(pending)pending.Remove(region);}
+        public void SetPaused(bool value){lock(pending){paused=value;if(!value)ready.Set();}}
         void Run(){
             while(true){
                 ready.WaitOne();
                 while(true){
                     Work work=null;
-                    lock(pending){if(stopped)return;foreach(var entry in pending){work=entry.Value;break;}if(work!=null)pending.Remove(work.Ticket.Region);}
+                    lock(pending){if(stopped)return;if(paused)break;foreach(var entry in pending){work=entry.Value;break;}if(work!=null)pending.Remove(work.Ticket.Region);}
                     if(work==null)break;
                     var done=new Completion {Work=work};var watch=Stopwatch.StartNew();
                     try{done.Answer=engine.Recognize(work.Traces,1046);}catch(Exception e){done.Error=e;}

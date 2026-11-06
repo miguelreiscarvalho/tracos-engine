@@ -23,7 +23,7 @@ Nesta máquina, o motor pt-BR foi encontrado mesmo que a lista de idiomas prefer
 
 ## Usar
 
-1. Escreva na folha e levante a caneta. A conversão ocorre sem botão ou confirmação.
+1. Escreva na folha e faça uma pausa natural. A conversão aguarda completar os traços, sem botão ou confirmação.
 2. Continue escrevendo: novas revisões da região podem substituir hipóteses anteriores, inclusive após pontos e acentos tardios.
 3. Selecione fonte/tamanho; use o slider para zoom e as barras para rolagem.
 4. Duplo clique numa região para corrigir o texto. Uma correção manual protege essa região de revisão automática. Para apagar uma região, ative Selecionar, clique e use Apagar seleção.
@@ -39,7 +39,23 @@ A folha é fixa (2400 × 1800 DIPs), com uma página e camada no protótipo. Tex
 .\build\Tracos.Tests.exe --experiment
 ```
 
-O primeiro comando executa 37 verificações, incluindo pontuação com múltiplos traços, acentos/cedilha, preservação de caracteres, posicionamento local, proteção de palavras anteriores e concorrência. O segundo chama o **motor real** nas políticas A/B/C e grava `local\experiments.csv`. As entradas são polilinhas sintéticas em `src/Experiments.cs`, não amostras humanas ou um benchmark de precisão.
+O primeiro comando executa as verificações de pontuação, acentos/cedilha, preservação de caracteres, posicionamento, espera adaptativa, histórico e concorrência (resultado atualizado em [fluidez e estabilidade](docs/FLUIDEZ_E_ESTABILIDADE.md)). O segundo chama o **motor real** nas políticas A/B/C e grava `local\experiments.csv`. As entradas são polilinhas sintéticas em `src/Experiments.cs`, não amostras humanas ou um benchmark de precisão.
+
+## Conversão após pausa e fluidez
+
+A tinta fica visível enquanto você completa uma palavra. A espera se adapta aos intervalos entre traços (1–2,2 s como base), dá tempo adicional quando a caneta está próxima e permite reconhecer antes um bloco encerrado quando você muda de lugar. Nenhum resultado é apresentado durante contato ativo. Acentos ou traços novos invalidam a revisão anterior; uma resposta já calculada pode aguardar uma pausa sem chamar o motor novamente.
+
+Histórico e reconhecimento deixaram de serializar o documento inteiro na interface. O histórico copia metadados/listas e compartilha traços já concluídos, que o editor trata como imutáveis. Salvamento automático serializa e grava em worker separado; ao fechar, o app aguarda a última gravação. Núcleos integrados a outros aplicativos devem respeitar a mesma regra: nunca alterar pontos de um traço concluído; criar uma nova versão em seu lugar.
+
+A folha bloqueia flicks/press-and-hold de caneta, não pede foco/BringIntoView ao começar um traço e preserva a transformação de coordenadas durante o contato. Rolagem explícita continua disponível fora da escrita. Teste físico de caneta ainda é necessário para confirmar o comportamento do driver.
+
+Para medir operações internas usando uma cópia do seu documento:
+
+```powershell
+.\build\Tracos.Tests.exe --profile caminho\documento.json
+```
+
+O CSV fica em `local\performance-stability.csv`. Ele mede operações de preparação, não latência caneta→pixel ou uso total de CPU.
 
 ## Pontuação e repertório
 
