@@ -22,11 +22,23 @@ namespace Tracos {
         readonly long timeOrigin=DateTime.UtcNow.Ticks/TimeSpan.TicksPerMillisecond;
         public bool Writing {get{return Active!=null;}}
         public double LastPaintMs;
+        sealed class GlyphCache {public string Text,Font;public double Size,Dpi;public Geometry Geometry;}
+        readonly Dictionary<string,GlyphCache> glyphCache=new Dictionary<string,GlyphCache>();
+        Geometry Glyphs(Region region) {
+            double dpi=VisualTreeHelper.GetDpi(this).PixelsPerDip;
+            GlyphCache cached;
+            if(glyphCache.TryGetValue(region.Id,out cached)&&cached.Text==region.Text&&cached.Font==Document.Font&&cached.Size==Document.FontSize&&cached.Dpi==dpi)
+                return cached.Geometry;
+            var text=new FormattedText(region.Text,System.Globalization.CultureInfo.GetCultureInfo("pt-BR"),FlowDirection.LeftToRight,new Typeface(Document.Font),Document.FontSize,Brushes.Black,dpi);
+            var geometry=text.BuildGeometry(new Point(0,0));geometry.Freeze();
+            glyphCache[region.Id]=new GlyphCache{Text=region.Text,Font=Document.Font,Size=Document.FontSize,Dpi=dpi,Geometry=geometry};
+            return geometry;
+        }
         public InkSurface(){Width=2400;Height=1800;Focusable=true;ClipToBounds=true;}
-        Region Hit(Point p){return Document.Regions.LastOrDefault(r=>{var b=r.Box;return p.X>=r.AnchorX-8&&p.X<=Math.Max(b.Right,r.AnchorX+r.Text.Length*Document.FontSize*.65)+12&&p.Y>=r.AnchorY-15&&p.Y<=Math.Max(b.Bottom,r.AnchorY+Document.FontSize)+12;});}
+        Region Hit(Point p){return Document.Regions.LastOrDefault(r=>{var b=r.Box;double right=r.Manual?Math.Max(b.Right,b.X+r.Text.Length*Document.FontSize*.65):b.Right;return p.X>=b.X-8&&p.X<=right+8&&p.Y>=b.Y-8&&p.Y<=Math.Max(b.Bottom,b.Y+Document.FontSize)+8;});}
         void Start(Point p,string device,int clicks){
             Focus();var region=Hit(p);
-            if(SelectMode||clicks==2){Selected=region==null?null:region.Id;InvalidateVisual();if(clicks==2&&region!=null&&EditRequested!=null)EditRequested(region);return;}
+            if(SelectMode||(device=="mouse"&&clicks==2)){Selected=region==null?null:region.Id;InvalidateVisual();if(clicks==2&&region!=null&&EditRequested!=null)EditRequested(region);return;}
             Active=new InkTrace {Device=device};
         }
         void AddMouse(Point p){if(Active!=null){Active.Points.Add(new InkPoint {X=p.X,Y=p.Y,Time=timeOrigin+clock.ElapsedMilliseconds,Pressure=.5f});InvalidateVisual();}}
@@ -60,13 +72,30 @@ namespace Tracos {
         protected override void OnRender(DrawingContext dc){
             var watch=Stopwatch.StartNew();dc.DrawRectangle(Brushes.White,null,new Rect(0,0,Width,Height));
             for(int y=96;y<Height;y+=64)dc.DrawLine(new Pen(new SolidColorBrush(Color.FromRgb(231,236,241)),1),new Point(32,y),new Point(Width-32,y));
+            if(Document!=null&&glyphCache.Count>Document.Regions.Count) {
+                var ids=new HashSet<string>(Document.Regions.Select(r=>r.Id));
+                foreach(var id in glyphCache.Keys.Where(id=>!ids.Contains(id)).ToArray())glyphCache.Remove(id);
+            }
             if(Document!=null)foreach(var r in Document.Regions){
                 if(!String.IsNullOrEmpty(r.Text)) {
-                    var text=new FormattedText(r.Text,System.Globalization.CultureInfo.GetCultureInfo("pt-BR"),FlowDirection.LeftToRight,new Typeface(Document.Font),Document.FontSize,new SolidColorBrush(Color.FromRgb(26,39,53)),VisualTreeHelper.GetDpi(this).PixelsPerDip);
-                    dc.DrawText(text,new Point(r.AnchorX,r.AnchorY));
+                    // Fit actual glyph ink, not the font's line box, to the
+                    // source writing. No paragraph reflow or first-stroke anchor.
+                    var glyphs=Glyphs(r);
+                    var bounds=glyphs.Bounds;
+                    if(!bounds.IsEmpty) {
+                        var placement=TextPlacement.Fit(r.Box,bounds.Width,bounds.Height);
+                        // Explicit keyboard edits may expand a short source mark
+                        // into a sentence; keep those at the selected font size.
+                        if(r.Manual){placement.ScaleX=1;placement.ScaleY=1;}
+                        dc.PushTransform(new TranslateTransform(placement.X,placement.Y));
+                        dc.PushTransform(new ScaleTransform(placement.ScaleX,placement.ScaleY));
+                        dc.PushTransform(new TranslateTransform(-bounds.X,-bounds.Y));
+                        dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(26,39,53)),null,glyphs);
+                        dc.Pop();dc.Pop();dc.Pop();
+                    }
                 }
                 foreach(var t in r.Traces.Skip(String.IsNullOrEmpty(r.Text)?0:r.RecognizedCount))DrawTrace(dc,t);
-                if(Selected==r.Id){var b=r.Box;dc.DrawRectangle(null,new Pen(Brushes.DarkOrange,1),new Rect(r.AnchorX-5,r.AnchorY-8,Math.Max(40,b.Right-r.AnchorX+15),Math.Max(Document.FontSize+16,b.Bottom-r.AnchorY+16)));}
+                if(Selected==r.Id){var b=r.Box;dc.DrawRectangle(null,new Pen(Brushes.DarkOrange,1),new Rect(b.X-5,b.Y-8,Math.Max(10,b.Right-b.X+10),Math.Max(10,b.Height+16)));}
             }
             if(Active!=null)DrawTrace(dc,Active);
             LastPaintMs=watch.Elapsed.TotalMilliseconds;
@@ -88,6 +117,7 @@ namespace Tracos {
             Title="Traços — escrita para texto";Width=1180;Height=820;MinWidth=760;MinHeight=500;
             recovery=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"..","local","recovery.json");Directory.CreateDirectory(Path.GetDirectoryName(recovery));
             if(File.Exists(recovery)){try{document=Storage.Decode(File.ReadAllBytes(recovery));}catch{try{document=Storage.Decode(File.ReadAllBytes(recovery+".bak"));}catch{status.Text="Não foi possível recuperar o documento; arquivos preservados.";}}}
+            foreach(var region in document.Regions)region.Closed=true;
             surface.Document=document;
             var root=new DockPanel {Background=new SolidColorBrush(Color.FromRgb(244,247,250))};Content=root;
             var toolbar=new WrapPanel {Margin=new Thickness(8)};DockPanel.SetDock(toolbar,Dock.Top);root.Children.Add(toolbar);
@@ -115,9 +145,8 @@ namespace Tracos {
         void InvalidateSession(){session=Guid.NewGuid().ToString();scheduler.Clear();dirty.Clear();}
         void Collected(InkTrace trace){
             history.Record(document);
-            var r=Spatial.Find(document,trace);
-            if(r==null){r=new Region {AnchorX=trace.Box.X,AnchorY=trace.Box.Y};document.Regions.Add(r);}
-            r.Traces.Add(trace);r.Revision++;r.Suppressed=false;dirty[r.Id]=DateTime.UtcNow;Changed();
+            var r=Spatial.Append(document,trace);
+            dirty[r.Id]=DateTime.UtcNow;Changed();
         }
         void Tick(){
             if(!surface.Writing)foreach(var pair in dirty.ToArray()){
@@ -151,6 +180,6 @@ namespace Tracos {
         }
         void DeleteSelected(){var r=Selected();if(r==null||surface.Writing)return;history.Record(document);InvalidateSession();document.Regions.Remove(r);surface.Selected=null;Changed();}
         void SaveAs(){var dlg=new SaveFileDialog {Filter="Documento Traços (*.json)|*.json",FileName="Anotação.json"};if(dlg.ShowDialog(this)==true)try{Storage.Save(dlg.FileName,document);status.Text="Documento salvo.";}catch(Exception e){MessageBox.Show(e.Message);}}
-        void Open(){if(surface.Writing)return;var dlg=new OpenFileDialog {Filter="Documento Traços (*.json)|*.json"};if(dlg.ShowDialog(this)!=true)return;try{var next=Storage.Decode(File.ReadAllBytes(dlg.FileName));Storage.Save(recovery,document);InvalidateSession();document=next;history=new History();surface.Selected=null;Changed();status.Text="Documento aberto; tinta e texto recuperados.";}catch(Exception e){MessageBox.Show(e.Message);}}
+        void Open(){if(surface.Writing)return;var dlg=new OpenFileDialog {Filter="Documento Traços (*.json)|*.json"};if(dlg.ShowDialog(this)!=true)return;try{var next=Storage.Decode(File.ReadAllBytes(dlg.FileName));Storage.Save(recovery,document);InvalidateSession();document=next;foreach(var region in document.Regions)region.Closed=true;history=new History();surface.Selected=null;Changed();status.Text="Documento aberto; tinta e texto recuperados.";}catch(Exception e){MessageBox.Show(e.Message);}}
     }
 }

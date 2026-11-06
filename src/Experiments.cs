@@ -53,6 +53,25 @@ namespace Tracos {
                 finally{File.Delete(path);File.Delete(path+".bak");}
                 Check(Metrics.Cer("ação","acão")==.25&&Metrics.Cer("á","a\u0301")==0,"CER unicode normalizado");
                 Check(Metrics.Wer("casa bonita","casa")==.5,"WER por palavra");
+                var page=new InkDocument();
+                var word=Spatial.Append(page,Trace(100,100,105,130,115,110,120,130));
+                word.Text="casa";word.RecognizedCount=1;
+                var letter=Spatial.Append(page,Trace(124,104,129,128,135,110,138,130));
+                Check(Object.ReferenceEquals(word,letter),"letras próximas revisam somente palavra ativa");
+                var nextWord=Spatial.Append(page,Trace(175,103,180,130,190,112,195,130));
+                Check(nextWord!=word&&word.Closed&&word.Text=="casa","espaço inicia bloco local e protege palavra anterior");
+                var nextLine=Spatial.Append(page,Trace(178,143,185,165,195,146,200,168));
+                Check(nextLine!=nextWord&&nextWord.Closed,"linha próxima não é anexada à linha anterior");
+                var late=Spatial.Append(page,Trace(106,92,110,88,114,92));
+                Check(late==word&&late.Closed&&nextLine.Traces.Count==1,"acento tardio só reabre a palavra sobreposta");
+                var elsewhere=Spatial.Append(page,Trace(250,95,275,120));
+                Check(elsewhere!=word&&word.Text=="casa","nova palavra não reinterpreta texto distante");
+                var placement=TextPlacement.Fit(new Bounds {X=400,Y=200,Right=490,Bottom=228},180,40);
+                Check(placement.X==400&&placement.Y==200&&placement.ScaleX*180<=90&&placement.ScaleY*40<=28,"texto permanece dentro da área original");
+                var moved=TextPlacement.Fit(new Bounds {X=600,Y=500,Right=690,Bottom=528},180,40);
+                Check(moved.X-placement.X==200&&moved.Y-placement.Y==300&&moved.ScaleX==placement.ScaleX,"layout independe de posição zoom e rolagem");
+                var state=Storage.Decode(Storage.Encode(page));
+                Check(state.Regions[0].Closed&&state.Regions[0].Traces.Count==3,"persistência de blocos fechados e acento original");
                 var delayed=new BlockingEngine();var finished=new ManualResetEvent(false);int completions=0;
                 using(var queue=new RecognitionScheduler(delayed,c=>{if(Interlocked.Increment(ref completions)==2)finished.Set();})){
                     queue.Enqueue(new Work {Ticket=new Ticket{Region="r",Revision=1},Traces=new List<InkTrace>{isolated}});
@@ -98,11 +117,30 @@ namespace Tracos {
             }
             return 0;
         }
+        public static int Replay(string path) {
+            var original=Storage.Decode(File.ReadAllBytes(path));
+            var replay=new InkDocument();
+            foreach(var trace in original.Regions.SelectMany(r=>r.Traces).OrderBy(t=>t.Points[0].Time))
+                Spatial.Append(replay,trace);
+            var engine=new WindowsInkEngine();
+            foreach(var region in replay.Regions) {
+                var result=engine.Recognize(region.Traces,1046);
+                region.Text=result.Text;region.RecognizedCount=region.Traces.Count;
+                Console.WriteLine(String.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "x={0:F1} y={1:F1} w={2:F1} h={3:F1} strokes={4}: {5}",region.Box.X,region.Box.Y,region.Box.Right-region.Box.X,region.Box.Height,region.Traces.Count,region.Text));
+            }
+            // Local evidence only: never overwrite or automatically re-recognize
+            // the user's recovered document.
+            Storage.Save("local/replay-local-placement.json",replay);
+            Console.WriteLine("Original traces: "+original.Regions.Sum(r=>r.Traces.Count)+"; replay traces: "+replay.Regions.Sum(r=>r.Traces.Count)+"; local groups: "+replay.Regions.Count);
+            return 0;
+        }
     }
     public static class Program {
         [STAThread] public static int Main(string[] args) {
             if(args.Contains("--test"))return Experiments.Test();
             if(args.Contains("--experiment"))return Experiments.Run();
+            if(args.Length==2&&args[0]=="--replay")return Experiments.Replay(args[1]);
             return Launch();
         }
         static int Launch(){var app=new System.Windows.Application();return app.Run(new Editor());}

@@ -1,5 +1,7 @@
 # Resultados observados
 
+Atualização de posicionamento: ver [correção após vídeo](CORRECAO_POSICIONAMENTO.md). A revisão atual passa 27 verificações; os 19 testes e a política por linha descritos abaixo registram o baseline inicial.
+
 Execução local em 06/11/2026. Sem histórico de outras conversas. Não foram baixados pesos, instalados modelos ou treinadas redes.
 
 ## Ambiente

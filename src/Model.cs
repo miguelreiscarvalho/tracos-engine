@@ -39,6 +39,7 @@ namespace Tracos {
         [DataMember] public int RecognizedCount;
         [DataMember] public double AnchorX;
         [DataMember] public double AnchorY;
+        [DataMember] public bool Closed;
         public Bounds Box { get { return Bounds.Of(Traces.SelectMany(t=>t.Points)); } }
     }
     [DataContract] public class InkDocument {
@@ -74,12 +75,51 @@ namespace Tracos {
         public InkDocument Redo(InkDocument d){if(redo.Count==0)return d;undo.Push(Storage.Encode(d));return Storage.Decode(redo.Pop());}
     }
     public static class Spatial {
-        // Region represents a line, never a forced character boundary.
+        // A region is a local word-sized writing group, not an entire line.
+        public static double WritingHeight(Region region) {
+            var heights=region.Traces.Select(t=>t.Box.Height).Where(h=>h>=8).OrderBy(h=>h).ToArray();
+            return heights.Length==0?20:Math.Max(12,Math.Min(80,heights[(heights.Length-1)*3/4]));
+        }
+        static bool IsLateMark(Region region, Bounds mark) {
+            var box=region.Box;
+            double height=WritingHeight(region);
+            // Only small overlapping additions can reopen a closed word. A new
+            // word above/below or beside it must never reinterpret its content.
+            if(box.Height>height*1.8 || mark.Right<box.X || mark.X>box.Right)return false;
+            bool accent=mark.Height<=height*.55 && mark.Right-mark.X<=height*.9 &&
+                mark.Bottom>=box.Y-height*.55 && mark.Y<=box.Y+height*.4;
+            bool completion=mark.Height<=height*1.8 && mark.Right-mark.X<=height*.75 &&
+                (mark.Y+mark.Bottom)/2>=box.Y-height*.2 &&
+                (mark.Y+mark.Bottom)/2<=box.Bottom+height*.2;
+            return accent||completion;
+        }
         public static Region Find(InkDocument d, InkTrace trace) {
             var b=trace.Box;
-            return d.Regions.Where(r=>!r.Manual).Select(r=>new {R=r,B=r.Box})
-                .Where(v=>b.Bottom>=v.B.Y-30 && b.Y<=v.B.Bottom+30 && b.Right>=v.B.X-50 && b.X<=v.B.Right+160)
-                .OrderBy(v=>Math.Abs((b.Y+b.Bottom)-(v.B.Y+v.B.Bottom))).Select(v=>v.R).FirstOrDefault();
+            // Prefer an actual accent overlap over proximity to another word.
+            var marked=d.Regions.Where(r=>!r.Manual&&IsLateMark(r,b))
+                .OrderBy(r=>Math.Abs((b.X+b.Right)-(r.Box.X+r.Box.Right))).FirstOrDefault();
+            if(marked!=null)return marked;
+            var active=d.Regions.LastOrDefault(r=>!r.Manual&&!r.Closed);
+            if(active==null)return null;
+            var a=active.Box;
+            double h=WritingHeight(active);
+            double overlap=Math.Min(a.Bottom,b.Bottom)-Math.Max(a.Y,b.Y);
+            bool sameLine=overlap>=Math.Min(h,Math.Max(1,b.Height))*.25;
+            double horizontalGap=Math.Max(b.X-a.Right,a.X-b.Right);
+            bool local=horizontalGap<=Math.Max(9,h*.4);
+            return sameLine&&local?active:null;
+        }
+        public static Region Append(InkDocument document, InkTrace trace) {
+            var region=Find(document,trace);
+            if(region==null) {
+                foreach(var previous in document.Regions)previous.Closed=true;
+                region=new Region {AnchorX=trace.Box.X,AnchorY=trace.Box.Y};
+                document.Regions.Add(region);
+            }
+            region.Traces.Add(trace);
+            region.Revision++;
+            region.Suppressed=false;
+            return region;
         }
         public static List<List<InkTrace>> Groups(IList<InkTrace> traces, bool words) {
             var groups=new List<List<InkTrace>>();

@@ -39,7 +39,19 @@ A folha é fixa (2400 × 1800 DIPs), com uma página e camada no protótipo. Tex
 .\build\Tracos.Tests.exe --experiment
 ```
 
-O primeiro comando executa 19 verificações, incluindo coalescência assíncrona e rejeição de resultados atrasados. O segundo chama o **motor real** nas políticas A/B/C e grava `local\experiments.csv`. As entradas são polilinhas sintéticas em `src/Experiments.cs`, não amostras humanas ou um benchmark de precisão.
+O primeiro comando executa 27 verificações, incluindo posicionamento local, proteção de palavras anteriores, coalescência assíncrona e rejeição de resultados atrasados. O segundo chama o **motor real** nas políticas A/B/C e grava `local\experiments.csv`. As entradas são polilinhas sintéticas em `src/Experiments.cs`, não amostras humanas ou um benchmark de precisão.
+
+## Posicionamento local
+
+A versão corrigida usa blocos locais de escrita, em vez de juntar a linha inteira. Uma lacuna ou mudança de linha encerra o bloco anterior; pontos, acentos e pequenos complementos sobrepostos podem rever somente o bloco correspondente. O texto automático ocupa a área dos traços originais, com redução de escala quando necessário, sem concatenar palavras distantes numa âncora antiga. Correção digitada manualmente mantém o tamanho de fonte escolhido e pode ultrapassar essa área.
+
+Documentos antigos mantêm o texto reconhecido e os traços: não são reprocessados automaticamente nem divididos retroativamente. Blocos recuperados ficam encerrados para não incorporar novas palavras. Para inspecionar o agrupamento em uma cópia, sem substituir o documento original:
+
+```powershell
+.\build\Tracos.Tests.exe --replay caminho\documento.json
+```
+
+Esse comando grava apenas `local\replay-local-placement.json`. Margens geométricas continuam heurísticas: letras muito espaçadas podem gerar blocos separados e a redução de contexto pode alterar a qualidade de reconhecimento.
 
 ## Estado e documentos
 

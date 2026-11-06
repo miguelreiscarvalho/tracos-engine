@@ -1,5 +1,15 @@
 # Decisão e plano do protótipo
 
+## Correção após análise do vídeo do usuário
+
+O comportamento inicial descrito abaixo foi revisto em 06/11/2026: uma região não representa mais uma linha inteira. `Spatial.Append` mantém um bloco local ativo, encerra blocos anteriores ao detectar lacuna/mudança de linha e permite pequenos complementos sobrepostos. Margem horizontal é `max(9 DIP, 0,4 × altura estimada)`, com teste de sobreposição vertical. Acentos/complementos são limitados por tamanho, posição e sobreposição; não são gestos de edição.
+
+`TextPlacement.Fit` posiciona os limites reais dos glifos nos limites da tinta original e reduz largura/altura quando necessário. Captura continua em DIPs, e zoom/rolagem apenas transformam a apresentação. Fonte e tamanho são limites tipográficos para conversão automática; edição digitada pode ampliar o bloco. Seleção segue a área local. Não se modifica o texto de outros blocos nem se reprocessa documento antigo automaticamente. O campo persistido `Closed` é aditivo à versão 1; ao abrir, todos os blocos existentes são encerrados.
+
+Caneta não aciona edição por duplo toque durante escrita: contatos rápidos são traços. Mouse mantém duplo clique; ferramenta Selecionar/Editar funciona com ambos. Essa alteração evita que letras/pontos rápidos sejam confundidos com edição.
+
+As seções seguintes registram a arquitetura inicial; a política de região/âncora acima substitui sua política inicial de linha única.
+
 ## Evidência anterior ao editor
 
 Compilador .NET Framework 4.x e Microsoft.Ink locais; reconhecedor pt-BR enumerado. A prova de conceito executou A (grupos de palavras), B (componentes geométricos) e C (prefixos de região) sobre os mesmos traços sintéticos. A e C chegaram a `casa`; B produziu `Ca5a`. C emitiu `C`, `ca`, `cas`, `casa`; um traço inicialmente `L` tornou-se `i` ao acrescentar ponto. O laço cursivo sintético não constitui transcrição humana rotulada e não valida cursiva.
