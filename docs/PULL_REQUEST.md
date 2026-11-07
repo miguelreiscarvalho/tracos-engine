@@ -1,4 +1,12 @@
-# fix: compose uniform text lines and protect completed words
+# fix: make handwriting conversion irreversible
+
+Esta descrição substitui a revisão histórica abaixo: a conversão agora descarta os traços e encerra o histórico anterior, por preferência explícita do usuário. Novas escritas no mesmo lugar não reabrem o gráfico convertido. Campos Converted/ConvertedBounds preservam somente o retângulo para layout; arquivos antigos migram blocos completamente reconhecidos ao abrir.
+
+Validação desta revisão: testes não executados por solicitação expressa do usuário. Somente compilação; teste manual será feito pelo usuário. Testes antigos de conversão reversível precisam de atualização. Risco principal: descarte intencional de tinta e limpeza de undo/redo após converter. Validar escrever→converter→escrever no mesmo local→desfazer sem recuperar tinta. Branch atual: codex/irreversible-ink-conversion; base 0064bd9. Sem publicação remota.
+
+---
+
+Descrição histórica da revisão anterior, não aplicável à política de conversão definitiva:
 
 ## Resumo
 

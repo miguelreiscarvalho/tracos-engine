@@ -53,7 +53,17 @@ namespace Tracos {
         [DataMember] public double AnchorY;
         [DataMember] public bool Closed;
         [DataMember] public bool InkOnly;
-        public Bounds Box { get { return Bounds.Union(Traces.Select(t=>t.Box)); } }
+        [DataMember] public bool Converted;
+        [DataMember] public Bounds ConvertedBounds;
+        public Bounds Box { get { return Converted?ConvertedBounds:Bounds.Union(Traces.Select(t=>t.Box)); } }
+    }
+    public static class InkConversion {
+        public static void Commit(Region region) {
+            if(region.Converted)return;
+            region.ConvertedBounds=region.Box;
+            region.Converted=true;region.Closed=true;region.InkOnly=false;
+            region.Traces.Clear();region.RecognizedCount=0;region.Revision++;
+        }
     }
     [DataContract] public class InkDocument {
         [DataMember] public int Version=1;
@@ -74,6 +84,7 @@ namespace Tracos {
                 if(String.IsNullOrEmpty(d.Layout))d.Layout="lines";
                 if(d.Version!=1 || d.Regions==null || d.Regions.Any(r=>r.Traces==null || r.Traces.Any(t=>t.Points==null || t.Points.Count==0 || t.Points.Any(p=>double.IsNaN(p.X)||double.IsInfinity(p.X)||double.IsNaN(p.Y)||double.IsInfinity(p.Y)))) || d.FontSize<8 || d.FontSize>100)
                     throw new InvalidDataException("Documento inválido ou versão incompatível.");
+                foreach(var region in d.Regions.Where(r=>!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&r.Traces.Count>0&&r.RecognizedCount==r.Traces.Count))InkConversion.Commit(region);
                 return d;
             }
         }
@@ -97,20 +108,21 @@ namespace Tracos {
             return new InkDocument {Version=d.Version,Id=d.Id,Page=d.Page,Layer=d.Layer,Font=d.Font,FontSize=d.FontSize,Layout=d.Layout,
                 Regions=d.Regions.Select(r=>new Region {Id=r.Id,Revision=r.Revision,Text=r.Text,
                     Alternatives=(string[])r.Alternatives.Clone(),Manual=r.Manual,Suppressed=r.Suppressed,
-                    RecognizedCount=r.RecognizedCount,AnchorX=r.AnchorX,AnchorY=r.AnchorY,Closed=r.Closed,InkOnly=r.InkOnly,
+                    RecognizedCount=r.RecognizedCount,AnchorX=r.AnchorX,AnchorY=r.AnchorY,Closed=r.Closed,InkOnly=r.InkOnly,Converted=r.Converted,ConvertedBounds=r.ConvertedBounds,
                     Traces=new List<InkTrace>(r.Traces)}).ToList()};
         }
     }
     public sealed class History {
         readonly Stack<InkDocument> undo=new Stack<InkDocument>(),redo=new Stack<InkDocument>();
         public void Record(InkDocument d){undo.Push(DocumentSnapshots.Copy(d));redo.Clear();}
+        public void ConversionBarrier(){undo.Clear();redo.Clear();}
         public InkDocument Undo(InkDocument d){if(undo.Count==0)return d;redo.Push(DocumentSnapshots.Copy(d));return undo.Pop();}
         public InkDocument Redo(InkDocument d){if(redo.Count==0)return d;undo.Push(DocumentSnapshots.Copy(d));return redo.Pop();}
     }
     public static class Spatial {
         public const long RevisionWindowMs=8000;
         public static bool MayRevise(Region region,InkTrace next) {
-            if(region.Manual||region.InkOnly)return false;
+            if(region.Converted||region.Manual||region.InkOnly)return false;
             if(String.IsNullOrEmpty(region.Text)||region.RecognizedCount<region.Traces.Count)return true;
             if(region.Traces.Count==0||next.Points.Count==0)return false;
             long elapsed=next.Points[0].Time-region.Traces.Last().Points.Last().Time;
@@ -189,7 +201,7 @@ namespace Tracos {
         public static Region Append(InkDocument document, InkTrace trace) {
             var region=Find(document,trace);
             if(region==null) {
-                if(document.Regions.Any(r=>!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&!MayRevise(r,trace)&&Intersects(r.Box,trace.Box)))
+                if(document.Regions.Any(r=>!r.Converted&&!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&!MayRevise(r,trace)&&Intersects(r.Box,trace.Box)))
                     return AppendInk(document,trace);
                 foreach(var previous in document.Regions)previous.Closed=true;
                 region=new Region {AnchorX=trace.Box.X,AnchorY=trace.Box.Y};
@@ -223,7 +235,7 @@ namespace Tracos {
     public sealed class Ticket {
         public string Session,Document,Page,Layer,Region; public int Revision;
         public bool Matches(string session,InkDocument d,Region r) {
-            return Session==session && Document==d.Id && Page==d.Page && Layer==d.Layer && r!=null && Region==r.Id && Revision==r.Revision && !r.Manual && !r.Suppressed && !r.InkOnly;
+            return Session==session && Document==d.Id && Page==d.Page && Layer==d.Layer && r!=null && Region==r.Id && Revision==r.Revision && !r.Manual && !r.Suppressed && !r.InkOnly && !r.Converted;
         }
     }
 }

@@ -1,5 +1,7 @@
 # Traços — protótipo de escrita para texto
 
+**Política atual: conversão definitiva.** Depois de converter, os traços do bloco são descartados e não voltam pelo histórico. Novas escritas no mesmo lugar criam novos blocos. A conversão limpa o histórico anterior para impedir restauração da tinta. Texto continua editável; tinta livre e falhas de reconhecimento continuam gráficas. Documentos antigos descartam a tinta de blocos já convertidos ao abrir. Esta política substitui as descrições históricas de preservação/revisão abaixo.
+
 Aplicativo desktop Windows: escreva livremente na folha usando caneta ou mouse e o reconhecedor local pt-BR substitui automaticamente a tinta por texto editável. A primeira implementação foi precedida por pesquisa, enumeração do motor e comparação A/B/C com dados sintéticos.
 
 ## Executar

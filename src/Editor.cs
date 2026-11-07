@@ -35,6 +35,7 @@ namespace Tracos {
         Dictionary<string,TextWordPlacement> textPositions=new Dictionary<string,TextWordPlacement>();
         bool layoutDirty=true;
         public void SetDocument(InkDocument document){Document=document;layoutDirty=true;InvalidateVisual();}
+        public void DiscardInkCache(){traceCache.Clear();}
         sealed class TraceCache {public int Count;public Geometry Geometry;}
         readonly Dictionary<string,TraceCache> traceCache=new Dictionary<string,TraceCache>();
         static readonly Pen inkPen=MakePen(Brushes.SteelBlue,2.2);
@@ -62,7 +63,7 @@ namespace Tracos {
         Bounds DisplayBox(Region region){TextWordPlacement placed;return textPositions.TryGetValue(region.Id,out placed)?placed.Box:region.Box;}
         public bool OverlapsProtectedText(InkTrace trace){
             EnsureLayout();
-            return Document.Regions.Any(r=>!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&!Spatial.MayRevise(r,trace)&&Spatial.Intersects(DisplayBox(r),trace.Box));
+            return Document.Regions.Any(r=>!r.Converted&&!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&!Spatial.MayRevise(r,trace)&&Spatial.Intersects(DisplayBox(r),trace.Box));
         }
         public InkSurface(){
             Width=2400;Height=1800;Focusable=false;ClipToBounds=true;
@@ -223,7 +224,7 @@ namespace Tracos {
         }
         void InvalidateSession(){session=Guid.NewGuid().ToString();scheduler.Clear();dirty.Clear();deferred.Clear();latestWrittenRegion=null;}
         void ResumePending(){
-            foreach(var r in document.Regions.Where(r=>!r.InkOnly&&!r.Manual&&!r.Suppressed&&(String.IsNullOrEmpty(r.Text)||r.RecognizedCount<r.Traces.Count)))dirty[r.Id]=DateTime.UtcNow;
+            foreach(var r in document.Regions.Where(r=>!r.Converted&&!r.InkOnly&&!r.Manual&&!r.Suppressed&&(String.IsNullOrEmpty(r.Text)||r.RecognizedCount<r.Traces.Count)))dirty[r.Id]=DateTime.UtcNow;
             if(dirty.Count>0)activity.Ended(timeline.ElapsedMilliseconds);
         }
         void Collected(InkTrace trace){
@@ -273,8 +274,9 @@ namespace Tracos {
             if(c.Error!=null){status.Text=c.Error.Message+" · tinta preservada";return;}
             if(c.Answer==null||String.IsNullOrWhiteSpace(c.Answer.Text)){status.Text="Sem hipótese · tinta preservada";return;}
             if(r.Text==c.Answer.Text&&r.RecognizedCount==r.Traces.Count)return;
-            history.Record(document);r.Text=c.Answer.Text;r.Alternatives=c.Answer.Alternatives;r.RecognizedCount=r.Traces.Count;
-            Changed();status.Text=String.Format("{0:F0} ms no motor · desenho {1:F1} ms · hipótese revisável · salvamento automático ativo",c.Milliseconds,surface.LastPaintMs);
+            r.Text=c.Answer.Text;r.Alternatives=c.Answer.Alternatives;
+            InkConversion.Commit(r);history.ConversionBarrier();surface.DiscardInkCache();
+            Changed();status.Text=String.Format("{0:F0} ms no motor · texto convertido · traços descartados",c.Milliseconds);
         }
         void Restore(bool redo){if(surface.Writing)return;InvalidateSession();document=redo?history.Redo(document):history.Undo(document);foreach(var r in document.Regions)r.Suppressed=true;Changed();status.Text="Histórico restaurado. Nova escrita permite rever a região.";}
         Region Selected(){return document.Regions.FirstOrDefault(r=>r.Id==surface.Selected);}
@@ -287,7 +289,7 @@ namespace Tracos {
                 alternatives.SelectionChanged+=(s,e)=>{if(alternatives.SelectedItem!=null)input.Text=alternatives.SelectedItem.ToString();};
                 panel.Children.Remove(input);DockPanel.SetDock(alternatives,Dock.Top);panel.Children.Add(alternatives);panel.Children.Add(input);
             }
-            Add(buttons,"Aplicar",()=>{history.Record(document);r.Text=input.Text;r.InkOnly=false;r.Manual=true;r.Revision++;r.RecognizedCount=String.IsNullOrEmpty(r.Text)?0:r.Traces.Count;Changed();dialog.Close();});Add(buttons,"Cancelar",()=>dialog.Close());dialog.Loaded+=(s,e)=>input.Focus();dialog.ShowDialog();ResumePending();
+            Add(buttons,"Aplicar",()=>{history.Record(document);r.Text=input.Text;r.InkOnly=false;r.Manual=true;r.Revision++;r.RecognizedCount=String.IsNullOrEmpty(r.Text)?0:r.Traces.Count;if(!String.IsNullOrEmpty(r.Text)){InkConversion.Commit(r);history.ConversionBarrier();surface.DiscardInkCache();}Changed();dialog.Close();});Add(buttons,"Cancelar",()=>dialog.Close());dialog.Loaded+=(s,e)=>input.Focus();dialog.ShowDialog();ResumePending();
         }
         void DeleteSelected(){var r=Selected();if(r==null||surface.Writing)return;history.Record(document);InvalidateSession();document.Regions.Remove(r);surface.Selected=null;Changed();}
         async void SaveAs(){var dlg=new SaveFileDialog {Filter="Documento Traços (*.json)|*.json",FileName="Anotação.json"};if(dlg.ShowDialog(this)==true)try{var snapshot=DocumentSnapshots.Copy(document);manualSave=Task.Run(()=>Storage.Save(dlg.FileName,snapshot));await manualSave;status.Text="Documento salvo.";}catch(Exception e){manualSave=Task.FromResult(0);MessageBox.Show(e.Message);}}
