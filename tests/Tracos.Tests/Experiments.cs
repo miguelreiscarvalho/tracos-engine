@@ -32,6 +32,18 @@ namespace Tracos {
         }
         public static int Test() {
             try {
+                Check(!typeof(InkDocument).Assembly.GetReferencedAssemblies().Any(a=>a.Name=="PresentationFramework"||a.Name=="PresentationCore"||a.Name=="Microsoft.Ink"),"núcleo reutilizável sem WPF ou Windows Ink");
+                var convertedDoc=new InkDocument();var converted=Spatial.Append(convertedDoc,Trace(100,100,110,130));
+                var conversionHistory=new History();conversionHistory.Record(convertedDoc);
+                var conversionBounds=converted.Box;converted.Text="ação";converted.RecognizedCount=converted.Traces.Count;
+                InkConversion.Commit(converted);conversionHistory.ConversionBarrier();
+                Check(converted.Converted&&converted.Closed&&converted.Traces.Count==0&&converted.Text=="ação"&&converted.Box.Right==conversionBounds.Right,"conversão descarta tinta e preserva texto e geometria");
+                Check(Object.ReferenceEquals(conversionHistory.Undo(convertedDoc),convertedDoc)&&Object.ReferenceEquals(conversionHistory.Redo(convertedDoc),convertedDoc),"barreira impede restauração da tinta convertida por undo e redo");
+                Check(Spatial.Append(convertedDoc,Trace(101,100,111,130))!=converted&&converted.Traces.Count==0,"nova escrita sobre conversão cria outro bloco");
+                var convertedCopy=Storage.Decode(Storage.Encode(convertedDoc));
+                Check(convertedCopy.Regions[0].Converted&&convertedCopy.Regions[0].Traces.Count==0&&convertedCopy.Regions[0].Text=="ação","conversão definitiva persiste sem tinta");
+                var legacy=new InkDocument();var legacyRegion=Spatial.Append(legacy,Trace(1,1,10,30));legacyRegion.Text="á";legacyRegion.RecognizedCount=legacyRegion.Traces.Count;
+                Check(Storage.Decode(Storage.Encode(legacy)).Regions[0].Converted,"documento legado migra conversão completa");
                 var d=new InkDocument();var r=new Region();r.Traces.Add(Trace(1,1,1,10));d.Regions.Add(r);
                 var ticket=new Ticket {Session="s",Document=d.Id,Page=d.Page,Layer=d.Layer,Region=r.Id,Revision=0};
                 Check(ticket.Matches("s",d,r),"ticket atual aceito");r.Revision++;
@@ -167,6 +179,7 @@ namespace Tracos {
                 return 0;
             } catch(Exception e){Console.WriteLine(e);return 1;}
         }
+#if WINDOWS_INK
         public static int Run() {
             Directory.CreateDirectory("local");
             using(var output=new StreamWriter("local/experiments.csv",false,System.Text.Encoding.UTF8)) {
@@ -210,16 +223,19 @@ namespace Tracos {
             Console.WriteLine("Original traces: "+original.Regions.Sum(r=>r.Traces.Count)+"; replay traces: "+replay.Regions.Sum(r=>r.Traces.Count)+"; local groups: "+replay.Regions.Count);
             return 0;
         }
+#endif
     }
     public static class Program {
         [STAThread] public static int Main(string[] args) {
             if(args.Contains("--test"))return Experiments.Test();
+#if WINDOWS_INK
             if(args.Contains("--experiment"))return Experiments.Run();
             if(args.Length==2&&args[0]=="--replay")return Experiments.Replay(args[1]);
             if(args.Length==2&&args[0]=="--evaluate-symbols")return SymbolEvaluation.Run(args[1]);
             if(args.Length==2&&args[0]=="--profile")return PerformanceEvaluation.Run(args[1]);
-            return Launch();
+#endif
+            Console.Error.WriteLine("Use --test, --experiment, --replay <json>, --evaluate-symbols <json> or --profile <json>.");
+            return 2;
         }
-        static int Launch(){var app=new System.Windows.Application();return app.Run(new Editor());}
     }
 }

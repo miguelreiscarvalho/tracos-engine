@@ -6,15 +6,6 @@ using System.Text;
 using Microsoft.Ink;
 
 namespace Tracos {
-    public sealed class InkAnswer {
-        public string Text = "";
-        public string[] Alternatives = new string[0];
-        public string Engine = "";
-        // Ranking is not a calibrated probability. No fabricated confidence.
-    }
-    public interface IRecognitionEngine {
-        InkAnswer Recognize(IList<InkTrace> traces, int language);
-    }
     public sealed class WindowsInkEngine : IRecognitionEngine {
         readonly bool resolvePunctuation;
         public WindowsInkEngine(bool resolvePunctuation=true){this.resolvePunctuation=resolvePunctuation;}

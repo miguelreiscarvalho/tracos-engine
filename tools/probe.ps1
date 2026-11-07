@@ -1,5 +1,10 @@
+﻿param([string]$InkAssemblyPath = $env:TRACOS_INK_ASSEMBLY_PATH)
 $ErrorActionPreference = 'Stop'
-Add-Type -Path 'C:\Program Files\Common Files\microsoft shared\ink\Microsoft.Ink.dll'
+if (-not $InkAssemblyPath) {
+    $InkAssemblyPath = Join-Path ${env:ProgramFiles} 'Common Files\microsoft shared\ink\Microsoft.Ink.dll'
+}
+if (-not (Test-Path -LiteralPath $InkAssemblyPath)) { throw 'Microsoft.Ink.dll not found. Use -InkAssemblyPath.' }
+Add-Type -Path $InkAssemblyPath
 $recognizers = New-Object Microsoft.Ink.Recognizers
 foreach ($recognizer in $recognizers) {
     Write-Output ($recognizer.Name + ' | languages=' + ($recognizer.Languages -join ','))
