@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Fluidez e estabilidade da escrita — 06/11/2026
 
 ## Diagnóstico

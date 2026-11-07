@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Análise do vídeo 20-40-54 — tipografia e fronteiras de revisão
 
 Vídeo fornecido em 06/11/2026, duração 248,72 s. Áudio em português transcrito localmente com faster-whisper (passagens small/medium e recortes difíceis), comparado a quadros do vídeo. A transcrição aproximada, com tempos e dúvidas, fica em `local/Transcricao_video_20-40-54.md`; áudio, pesos e resultados brutos permanecem fora do Git. Não se afirma transcrição humana/verbatim garantida. Implementação da transcrição: https://github.com/SYSTRAN/faster-whisper.

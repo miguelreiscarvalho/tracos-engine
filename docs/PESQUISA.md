@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Pesquisa e viabilidade — 06/11/2026
 
 Escopo: repositório inicialmente vazio; nenhuma conversa anterior foi consultada.

@@ -1,63 +1,60 @@
-# fix: make handwriting conversion irreversible
-
-Esta descrição substitui a revisão histórica abaixo: a conversão agora descarta os traços e encerra o histórico anterior, por preferência explícita do usuário. Novas escritas no mesmo lugar não reabrem o gráfico convertido. Campos Converted/ConvertedBounds preservam somente o retângulo para layout; arquivos antigos migram blocos completamente reconhecidos ao abrir.
-
-Validação desta revisão: testes não executados por solicitação expressa do usuário. Somente compilação; teste manual será feito pelo usuário. Testes antigos de conversão reversível precisam de atualização. Risco principal: descarte intencional de tinta e limpeza de undo/redo após converter. Validar escrever→converter→escrever no mesmo local→desfazer sem recuperar tinta. Branch atual: codex/irreversible-ink-conversion; base 0064bd9. Sem publicação remota.
-
----
-
-Descrição histórica da revisão anterior, não aplicável à política de conversão definitiva:
+# refactor: prepare Traços as an open-source handwriting engine
 
 ## Resumo
 
-O vídeo do usuário mostra frase fragmentada, fonte irregular e revisão acidental de palavras antigas. Este PR separa a composição tipográfica do reconhecimento: usa fonte sem escala por palavra, organiza blocos em linhas e restringe a janela de revisão; traços posteriores sobre texto pronto ficam como anotações.
+Separa o motor de reconhecimento do editor Windows para permitir sua integração em outros aplicativos por bibliotecas C#. Prepara o repositório para colaboração no GitHub com licença MIT, documentação de uso, exemplos, testes e CI do núcleo.
 
 ## Mudanças principais
 
-- Composição visual de linhas com baseline, fonte e espaços comuns; opção Posição original.
-- Remoção do encaixe/escala de glifos no renderer, mantendo cache de métricas e geometria.
-- Janela de revisão de 8 s; sobreposições posteriores preservadas em InkOnly.
-- Ferramenta Tinta livre para fórmulas/desenhos, sem prometer reconhecimento matemático.
-- Alternativas nativas no diálogo de correção; snapshots/persistência/tickets compatíveis com campos novos.
-- Finalização de traço ativo ao fechar antes do snapshot; análise com limites e testes.
+- Tracos.Core contém o contrato do motor, traços, agrupamento, fila e persistência, sem WPF ou Microsoft.Ink.
+- Tracos.WindowsInk implementa o backend Windows, com o reconhecedor do sistema como dependência externa.
+- Editor WPF, consumidor JSON e testes ficam em diretórios separados.
+- Build completo e modo CoreOnly produzem e validam as bibliotecas sem NuGet.
+- Seis verificações novas cobrem independência do núcleo, conversão definitiva, histórico, nova escrita, persistência e migração legada.
+- README, licença, avisos externos, contribuição, segurança, roadmap, issues e modelo de PR.
+- GitHub Actions testa o núcleo sem instalar componentes proprietários; documentação anterior permanece identificada como histórica.
 
 ## Motivação
 
-Reduzir latência não corrigia o modelo de apresentação. A escala independente dos glifos tornava o tamanho selecionado inconsistente, e a revisão geométrica sem expiração permitia que destaques posteriores alterassem palavras já convertidas.
+O projeto estava organizado como um protótipo de aplicativo com compilação monolítica. Consumidores precisam de um contrato e bibliotecas reutilizáveis, instruções reproduzíveis e clareza sobre o que é aberto e quais dependências pertencem ao Windows.
 
 ## Como validar
 
-1. Executar `build.ps1 -Test` e `run.ps1` no PowerShell.
-2. Escrever na folha com mouse/caneta; levantar e observar conversão automática.
-3. Escrever uma frase em uma linha com palavras de tamanhos diferentes; confirmar fonte uniforme, baseline e espaços tipográficos. Alternar Texto em linhas/Posição original.
-4. Desfazer conversão e conferir tinta original; Refazer deve reaplicar texto.
-5. Alterar fonte 26→18 e verificar mudança comum em todos os blocos. Após mais de 8 s, riscar/circular palavra antiga: o texto deve permanecer e o traço ficar como anotação. Acrescentar acento dentro da janela de revisão.
-6. Salvar, fechar e abrir; conferir texto e tinta preservados no JSON.
-7. Marcar Tinta livre e escrever fórmula/desenho; não deve entrar no motor. Selecionar palavra e Editar para ver alternativas nativas quando presentes.
+1. Em Windows x64 com .NET Framework, executar `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -CoreOnly -Test`.
+2. Em ambiente com Windows Ink, executar o mesmo comando sem `-CoreOnly`.
+3. Executar `build\Tracos.RecognizeInk.exe examples\RecognizeInk\traces.json`; confirmar saída textual sem abrir o editor.
+4. Executar `run.ps1`, escrever e aguardar conversão.
+5. Confirmar que texto convertido permanece editável, nova escrita cria outro bloco e desfazer não recupera tinta convertida.
+6. Revisar os guias de integração e dependências antes de incorporar as DLLs em outro aplicativo.
 
 ## Testes
 
-- Compilação .NET Framework desktop e harness: executada sem avisos.
-- `build.ps1 -Test`: 60 verificações passaram; compilação sem avisos. Oito verificações novas de layout, revisão protegida e persistência.
-- Smoke com mouse: frase composta em linha, fonte 26→18 uniforme; traço sobre palavra antiga persistiu InkOnly e texto `representa` permaneceu intacto.
-- Desfazer restaurou fonte 26 na folha e no seletor; textos/55 regiões/118 traços originais preservados após retirar as marcas de teste. Pontuação anterior permanece 8/8 na amostra local.
-- Transcrição e imagens analisadas localmente; trechos incertos identificados, sem usar o áudio como autorização de sistema.
-- Caneta física, CER/WER em corpus humano, testes de longa duração e falha de energia: não executados.
-- Gradle/Android não se aplicam; não existe projeto Gradle. SDK moderno `dotnet` fora do PATH não bloqueou o compilador Framework disponível.
+Validação local em 07/11/2026:
+
+- Build completo: passou com warnings tratados como erros.
+- Build/testes CoreOnly: passou, sem referência do núcleo a WPF ou Microsoft.Ink.
+- Suíte: 66 verificações passaram em cada modo.
+- Consumidor JSON com reconhecedor pt-BR real: executou e retornou `C` para a amostra sintética.
+- CLI sem argumentos: código 2; arquivo inexistente: código 1.
+- Enumeração do backend: reconhecedor Microsoft pt-BR, LCID 1046, encontrado.
+- Revisão de whitespace e de arquivos versionados realizada; build/local e dependências proprietárias excluídos.
+- Não há projeto Gradle/Android; testDebugUnitTest/assembleDebug não se aplicam.
+- Validação manual de escrita física e acurácia em corpus humano não foi executada nesta etapa.
+
+A execução hospedada do GitHub Actions deve ser conferida após o push; execução local não comprova sucesso do CI remoto.
 
 ## Riscos / pontos de atenção
 
-- Dependência de Microsoft.Ink e modelo pt-BR instalado; motor proprietário/legado.
-- Agrupamento visual de linhas é heurístico, sem wrapping ou editor de parágrafo com cursor contínuo. Edição continua por região.
-- Janela de 8 s é política explícita; acentos posteriores exigem Editar. Sobreposições ambíguas dentro da janela ainda precisam de testes físicos.
-- Campos Layout/InkOnly são aditivos ao JSON v1; arquivos antigos adotam composição por linhas ao abrir, sem reprocessar conteúdo.
-- Matemática bidimensional continua pendente; Tinta livre preserva a geometria. Precisão lexical do motor permanece limitada.
-- Pesos, áudio, vídeo, transcrição e fixtures privadas permanecem fora do Git; não publicar material do usuário automaticamente.
-- Uma página/camada; sem migração de banco. JSON possui versão 1 e backup.
+- Backend continua dependente do Windows Ink e de modelos instalados; não há backend aberto próprio ou suporte multiplataforma validado.
+- Caminhos de código mudaram; integrações antigas devem referenciar as bibliotecas e os novos diretórios.
+- Conversão definitiva da demonstração descarta tinta e limpa histórico; abertura de documentos antigos pode migrar blocos já reconhecidos.
+- API experimental, sem garantia de compatibilidade estável.
+- CI padrão testa o núcleo com motor controlado; não mede qualidade de transcrição nem instala Windows Ink.
+- Licença MIT cobre código próprio, não a DLL Microsoft ou modelos externos.
 
 ## Screenshots ou gravação
 
-Mudança visual: captura local em `local/review4-ui-after.png`; anexar somente com autorização para publicar o conteúdo do usuário. Quadros, áudio e transcrição permanecem locais.
+Este PR não altera UI visível. As mudanças são principalmente internas e de organização/documentação.
 
 ## Checklist
 
@@ -65,9 +62,7 @@ Mudança visual: captura local em `local/review4-ui-after.png`; anexar somente c
 - [x] Commits revisados
 - [x] Sem arquivos temporários/build/secrets
 - [x] Testes executados ou bloqueio explicado
-- [x] Mudanças manuais validadas no smoke com mouse (caneta física pendente)
+- [ ] Mudanças manuais validadas com caneta física
 - [x] PR descreve riscos e próximos passos
 
-## Publicação
-
-Branch: `codex/fix-line-typography-and-revision-boundaries`. Base local: `codex/fix-writing-stability-and-ui-stalls` (`2505ca4`). Nenhum remote configurado; comparação feita com a base local. Esta descrição está preparada para revisão; PR remoto não foi criado, pois não existe destino configurado.
+Descrição preparada para revisão. Na importação inicial para um repositório novo, não há uma base remota anterior que exija abrir um PR.

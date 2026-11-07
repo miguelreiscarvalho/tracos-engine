@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Resultados observados
 
 Revisão atual: [vídeo 20-40-54, tipografia e revisão](ANALISE_VIDEO_204054.md), 60 verificações. Documentos anteriores abaixo são registros históricos de cada implementação, não garantias de cobertura atual de reconhecimento.

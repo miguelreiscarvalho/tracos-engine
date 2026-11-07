@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Pontuação e cobertura de caracteres — 06/11/2026
 
 ## Requisito e terminologia

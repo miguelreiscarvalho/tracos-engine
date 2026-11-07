@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Conversão definitiva
 
 Preferência explícita do usuário: converter e descartar o gráfico, sem retorno pelo histórico.

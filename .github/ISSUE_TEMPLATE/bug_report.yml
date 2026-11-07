@@ -1,0 +1,28 @@
+name: Relatar problema
+description: Comportamento incorreto reproduzível no motor ou na demonstração.
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Resultado atual e esperado
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Como reproduzir
+      description: Use exemplos sintéticos. Não inclua escrita pessoal, credenciais ou recuperação automática.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente
+      description: Commit, Windows, idioma do reconhecedor, comando de build e dispositivo.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs e testes executados

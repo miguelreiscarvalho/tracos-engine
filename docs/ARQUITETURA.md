@@ -1,3 +1,5 @@
+> Documento histórico de uma revisão anterior. Consulte a [arquitetura atual](ENGINE.md) e o [mapa da documentação](README.md) para o estado vigente.
+
 # Decisão e plano do protótipo
 
 Atualização atual: [tipografia por linha e fronteiras de revisão](ANALISE_VIDEO_204054.md). Reconhecer regiões e compor texto passam a ser etapas separadas: fonte sem escalas por palavra, modos de linhas/âncoras, janela de revisão explícita e anotações `InkOnly`. Essa decisão substitui o encaixe individual no retângulo de cada palavra descrito historicamente abaixo.
