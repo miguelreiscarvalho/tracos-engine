@@ -1,5 +1,7 @@
 # Decisão e plano do protótipo
 
+Atualização atual: [tipografia por linha e fronteiras de revisão](ANALISE_VIDEO_204054.md). Reconhecer regiões e compor texto passam a ser etapas separadas: fonte sem escalas por palavra, modos de linhas/âncoras, janela de revisão explícita e anotações `InkOnly`. Essa decisão substitui o encaixe individual no retângulo de cada palavra descrito historicamente abaixo.
+
 Atualização de fluidez: [espera adaptativa, snapshots e persistência assíncrona](FLUIDEZ_E_ESTABILIDADE.md) substituem a política inicial de reconhecimento após cada pen-up. O histórico agora copia metadados/listas sem serializar pontos, compartilhando traços concluídos sob contrato de imutabilidade. O reconhecimento recebe apenas a lista da região; autosave serializa no worker. Resultados aguardam estabilidade fora de contato ativo e não disparam nova inferência da mesma revisão. Geometria/bounds são armazenados em cache; coordenadas de cada contato usam transformação fixa. A revisão de diacríticos usa a altura do envelope local para não perder til/cedilha em cursiva.
 
 Atualização de pontuação: `Spatial.Find` agora reúne partes verticais de símbolos compactos e permite pequenos complementos inferiores para cedilha. O adaptador normaliza NFC e resolve apenas a ambiguidade de dois pontos documentada em [pontuação/repertório](PONTUACAO_E_COBERTURA.md); o núcleo não filtra a saída para ASCII nem afirma cobertura de reconhecimento completa.

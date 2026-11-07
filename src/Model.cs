@@ -52,6 +52,7 @@ namespace Tracos {
         [DataMember] public double AnchorX;
         [DataMember] public double AnchorY;
         [DataMember] public bool Closed;
+        [DataMember] public bool InkOnly;
         public Bounds Box { get { return Bounds.Union(Traces.Select(t=>t.Box)); } }
     }
     [DataContract] public class InkDocument {
@@ -61,6 +62,7 @@ namespace Tracos {
         [DataMember] public string Layer="ink-1";
         [DataMember] public string Font="Segoe UI";
         [DataMember] public double FontSize=26;
+        [DataMember] public string Layout="lines";
         [DataMember] public List<Region> Regions=new List<Region>();
     }
     public static class Storage {
@@ -69,6 +71,7 @@ namespace Tracos {
         public static InkDocument Decode(byte[] bytes) {
             using(var m=new MemoryStream(bytes)) {
                 var d=(InkDocument)new DataContractJsonSerializer(typeof(InkDocument)).ReadObject(m);
+                if(String.IsNullOrEmpty(d.Layout))d.Layout="lines";
                 if(d.Version!=1 || d.Regions==null || d.Regions.Any(r=>r.Traces==null || r.Traces.Any(t=>t.Points==null || t.Points.Count==0 || t.Points.Any(p=>double.IsNaN(p.X)||double.IsInfinity(p.X)||double.IsNaN(p.Y)||double.IsInfinity(p.Y)))) || d.FontSize<8 || d.FontSize>100)
                     throw new InvalidDataException("Documento inválido ou versão incompatível.");
                 return d;
@@ -91,10 +94,10 @@ namespace Tracos {
         // their region/list containers and share those completed trace values.
         // Active ink is never inserted into a document until pen-up.
         public static InkDocument Copy(InkDocument d) {
-            return new InkDocument {Version=d.Version,Id=d.Id,Page=d.Page,Layer=d.Layer,Font=d.Font,FontSize=d.FontSize,
+            return new InkDocument {Version=d.Version,Id=d.Id,Page=d.Page,Layer=d.Layer,Font=d.Font,FontSize=d.FontSize,Layout=d.Layout,
                 Regions=d.Regions.Select(r=>new Region {Id=r.Id,Revision=r.Revision,Text=r.Text,
                     Alternatives=(string[])r.Alternatives.Clone(),Manual=r.Manual,Suppressed=r.Suppressed,
-                    RecognizedCount=r.RecognizedCount,AnchorX=r.AnchorX,AnchorY=r.AnchorY,Closed=r.Closed,
+                    RecognizedCount=r.RecognizedCount,AnchorX=r.AnchorX,AnchorY=r.AnchorY,Closed=r.Closed,InkOnly=r.InkOnly,
                     Traces=new List<InkTrace>(r.Traces)}).ToList()};
         }
     }
@@ -105,6 +108,21 @@ namespace Tracos {
         public InkDocument Redo(InkDocument d){if(redo.Count==0)return d;undo.Push(DocumentSnapshots.Copy(d));return redo.Pop();}
     }
     public static class Spatial {
+        public const long RevisionWindowMs=8000;
+        public static bool MayRevise(Region region,InkTrace next) {
+            if(region.Manual||region.InkOnly)return false;
+            if(String.IsNullOrEmpty(region.Text)||region.RecognizedCount<region.Traces.Count)return true;
+            if(region.Traces.Count==0||next.Points.Count==0)return false;
+            long elapsed=next.Points[0].Time-region.Traces.Last().Points.Last().Time;
+            return elapsed<=RevisionWindowMs;
+        }
+        public static bool Intersects(Bounds a,Bounds b) {
+            return a.X<=b.Right&&a.Right>=b.X&&a.Y<=b.Bottom&&a.Bottom>=b.Y;
+        }
+        public static Region AppendInk(InkDocument document,InkTrace trace) {
+            var region=new Region {InkOnly=true,AnchorX=trace.Box.X,AnchorY=trace.Box.Y,Revision=1,Closed=true};
+            region.Traces.Add(trace);document.Regions.Add(region);return region;
+        }
         // A region is a local word-sized writing group, not an entire line.
         public static double WritingHeight(Region region) {
             // Short crossbars must not shrink the estimated height of a cursive
@@ -150,15 +168,15 @@ namespace Tracos {
         }
         public static Region Find(InkDocument d, InkTrace trace) {
             var b=trace.Box;
-            var symbol=d.Regions.Where(r=>!r.Manual&&IsVerticalSymbolPart(r,trace))
+            var symbol=d.Regions.Where(r=>MayRevise(r,trace)&&IsVerticalSymbolPart(r,trace))
                 .OrderBy(r=>Math.Abs((b.Y+b.Bottom)-(r.Box.Y+r.Box.Bottom))+Math.Abs((b.X+b.Right)-(r.Box.X+r.Box.Right)))
                 .FirstOrDefault();
             if(symbol!=null)return symbol;
             // Prefer an actual accent overlap over proximity to another word.
-            var marked=d.Regions.Where(r=>!r.Manual&&IsLateMark(r,b))
+            var marked=d.Regions.Where(r=>MayRevise(r,trace)&&IsLateMark(r,b))
                 .OrderBy(r=>Math.Abs((b.X+b.Right)-(r.Box.X+r.Box.Right))).FirstOrDefault();
             if(marked!=null)return marked;
-            var active=d.Regions.LastOrDefault(r=>!r.Manual&&!r.Closed);
+            var active=d.Regions.LastOrDefault(r=>MayRevise(r,trace)&&!r.Closed);
             if(active==null)return null;
             var a=active.Box;
             double h=WritingHeight(active);
@@ -171,6 +189,8 @@ namespace Tracos {
         public static Region Append(InkDocument document, InkTrace trace) {
             var region=Find(document,trace);
             if(region==null) {
+                if(document.Regions.Any(r=>!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&!MayRevise(r,trace)&&Intersects(r.Box,trace.Box)))
+                    return AppendInk(document,trace);
                 foreach(var previous in document.Regions)previous.Closed=true;
                 region=new Region {AnchorX=trace.Box.X,AnchorY=trace.Box.Y};
                 document.Regions.Add(region);
@@ -203,7 +223,7 @@ namespace Tracos {
     public sealed class Ticket {
         public string Session,Document,Page,Layer,Region; public int Revision;
         public bool Matches(string session,InkDocument d,Region r) {
-            return Session==session && Document==d.Id && Page==d.Page && Layer==d.Layer && r!=null && Region==r.Id && Revision==r.Revision && !r.Manual && !r.Suppressed;
+            return Session==session && Document==d.Id && Page==d.Page && Layer==d.Layer && r!=null && Region==r.Id && Revision==r.Revision && !r.Manual && !r.Suppressed && !r.InkOnly;
         }
     }
 }

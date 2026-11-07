@@ -17,6 +17,7 @@ namespace Tracos {
         public InkTrace Active;
         public string Selected;
         public bool SelectMode;
+        public bool FreeInk;
         public event Action<InkTrace> Collected;
         public event Action<Region> EditRequested;
         public event Action Began;
@@ -29,23 +30,39 @@ namespace Tracos {
         readonly long timeOrigin=DateTime.UtcNow.Ticks/TimeSpan.TicksPerMillisecond;
         public bool Writing {get{return Active!=null;}}
         public double LastPaintMs;
-        sealed class GlyphCache {public string Text,Font;public double Size,Dpi;public Geometry Geometry;}
+        sealed class GlyphCache {public string Text,Font;public double Size,Dpi,Width,Height,Baseline;public Geometry Geometry;}
         readonly Dictionary<string,GlyphCache> glyphCache=new Dictionary<string,GlyphCache>();
+        Dictionary<string,TextWordPlacement> textPositions=new Dictionary<string,TextWordPlacement>();
+        bool layoutDirty=true;
+        public void SetDocument(InkDocument document){Document=document;layoutDirty=true;InvalidateVisual();}
         sealed class TraceCache {public int Count;public Geometry Geometry;}
         readonly Dictionary<string,TraceCache> traceCache=new Dictionary<string,TraceCache>();
         static readonly Pen inkPen=MakePen(Brushes.SteelBlue,2.2);
         static readonly Pen linePen=MakePen(new SolidColorBrush(Color.FromRgb(231,236,241)),1);
         static readonly Brush textBrush=new SolidColorBrush(Color.FromRgb(26,39,53));
         static Pen MakePen(Brush brush,double width){var pen=new Pen(brush,width){StartLineCap=PenLineCap.Round,EndLineCap=PenLineCap.Round};pen.Freeze();return pen;}
-        Geometry Glyphs(Region region) {
+        GlyphCache Glyphs(Region region) {
             double dpi=VisualTreeHelper.GetDpi(this).PixelsPerDip;
             GlyphCache cached;
             if(glyphCache.TryGetValue(region.Id,out cached)&&cached.Text==region.Text&&cached.Font==Document.Font&&cached.Size==Document.FontSize&&cached.Dpi==dpi)
-                return cached.Geometry;
+                return cached;
             var text=new FormattedText(region.Text,System.Globalization.CultureInfo.GetCultureInfo("pt-BR"),FlowDirection.LeftToRight,new Typeface(Document.Font),Document.FontSize,Brushes.Black,dpi);
             var geometry=text.BuildGeometry(new Point(0,0));geometry.Freeze();
-            glyphCache[region.Id]=new GlyphCache{Text=region.Text,Font=Document.Font,Size=Document.FontSize,Dpi=dpi,Geometry=geometry};
-            return geometry;
+            cached=new GlyphCache{Text=region.Text,Font=Document.Font,Size=Document.FontSize,Dpi=dpi,Geometry=geometry,Width=text.WidthIncludingTrailingWhitespace,Height=text.Height,Baseline=text.Baseline};
+            glyphCache[region.Id]=cached;return cached;
+        }
+        void EnsureLayout(){
+            if(!layoutDirty||Document==null)return;
+            var words=Document.Regions.Where(r=>!r.InkOnly&&!String.IsNullOrWhiteSpace(r.Text)).Select(r=>{
+                var glyph=Glyphs(r);return new TextWordMetrics{Region=r,Width=glyph.Width,Height=glyph.Height,Baseline=glyph.Baseline};
+            }).ToArray();
+            double space=new FormattedText(" ",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"),FlowDirection.LeftToRight,new Typeface(Document.Font),Document.FontSize,Brushes.Black,VisualTreeHelper.GetDpi(this).PixelsPerDip).WidthIncludingTrailingWhitespace;
+            textPositions=TextLineLayout.Compose(words,Document.Layout!="positions",space);layoutDirty=false;
+        }
+        Bounds DisplayBox(Region region){TextWordPlacement placed;return textPositions.TryGetValue(region.Id,out placed)?placed.Box:region.Box;}
+        public bool OverlapsProtectedText(InkTrace trace){
+            EnsureLayout();
+            return Document.Regions.Any(r=>!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&!Spatial.MayRevise(r,trace)&&Spatial.Intersects(DisplayBox(r),trace.Box));
         }
         public InkSurface(){
             Width=2400;Height=1800;Focusable=false;ClipToBounds=true;
@@ -55,12 +72,13 @@ namespace Tracos {
             Stylus.SetIsTouchFeedbackEnabled(this,false);
             RequestBringIntoView+=(s,e)=>e.Handled=true;
         }
-        Region Hit(Point p){return Document.Regions.LastOrDefault(r=>{var b=r.Box;double right=r.Manual?Math.Max(b.Right,b.X+r.Text.Length*Document.FontSize*.65):b.Right;return p.X>=b.X-8&&p.X<=right+8&&p.Y>=b.Y-8&&p.Y<=Math.Max(b.Bottom,b.Y+Document.FontSize)+8;});}
+        Region Hit(Point p){EnsureLayout();return Document.Regions.LastOrDefault(r=>{var b=DisplayBox(r);return p.X>=b.X-8&&p.X<=b.Right+8&&p.Y>=b.Y-8&&p.Y<=b.Bottom+8;});}
         void Start(Point p,string device,int clicks){
             var region=Hit(p);
             if(SelectMode||(device=="mouse"&&clicks==2)){Selected=region==null?null:region.Id;InvalidateVisual();if(clicks==2&&region!=null&&EditRequested!=null)EditRequested(region);return;}
             Active=new InkTrace {Device=device};
-            ActiveRegion=region==null?null:region.Id;
+            var probe=new InkTrace();probe.Points.Add(new InkPoint{X=p.X,Y=p.Y,Time=timeOrigin+clock.ElapsedMilliseconds});
+            ActiveRegion=region!=null&&!FreeInk&&Spatial.MayRevise(region,probe)?region.Id:null;
             inputRoot=(UIElement)Window.GetWindow(this)??this;
             inputTransform=inputRoot==this?null:TransformToVisual(inputRoot).Inverse;
             if(Began!=null)Began();
@@ -78,6 +96,7 @@ namespace Tracos {
             InvalidateVisual();
         }
         void Finish(){var t=Active;Active=null;ActiveRegion=null;if(t!=null){if(t.Points.Count>0&&Collected!=null)Collected(t);if(Ended!=null)Ended();}InvalidateVisual();}
+        public void CommitPending(){Finish();}
         protected override void OnStylusDown(StylusDownEventArgs e){Start(e.GetPosition(this),"stylus",e.TapCount);if(Active!=null){CaptureStylus();AddStylus(e);}e.Handled=true;}
         protected override void OnStylusMove(StylusEventArgs e){HoverPoint=e.GetPosition(this);if(Active!=null){if(e.StylusDevice.InAir){Finish();ReleaseStylusCapture();}else AddStylus(e);e.Handled=true;}}
         protected override void OnStylusLeave(StylusEventArgs e){HoverPoint=null;}
@@ -103,32 +122,24 @@ namespace Tracos {
         }
         protected override void OnRender(DrawingContext dc){
             var watch=Stopwatch.StartNew();dc.DrawRectangle(Brushes.White,null,new Rect(0,0,Width,Height));
+            EnsureLayout();
             for(int y=96;y<Height;y+=64)dc.DrawLine(linePen,new Point(32,y),new Point(Width-32,y));
             if(Document!=null&&glyphCache.Count>Document.Regions.Count) {
                 var ids=new HashSet<string>(Document.Regions.Select(r=>r.Id));
                 foreach(var id in glyphCache.Keys.Where(id=>!ids.Contains(id)).ToArray())glyphCache.Remove(id);
             }
             if(Document!=null)foreach(var r in Document.Regions){
-                bool showText=!String.IsNullOrEmpty(r.Text)&&(r.Manual||(r.RecognizedCount==r.Traces.Count&&r.Id!=ActiveRegion));
+                bool showText=!r.InkOnly&&!String.IsNullOrEmpty(r.Text)&&(r.Manual||(r.RecognizedCount==r.Traces.Count&&r.Id!=ActiveRegion));
                 if(showText) {
-                    // Fit actual glyph ink, not the font's line box, to the
-                    // source writing. No paragraph reflow or first-stroke anchor.
                     var glyphs=Glyphs(r);
-                    var bounds=glyphs.Bounds;
-                    if(!bounds.IsEmpty) {
-                        var placement=TextPlacement.Fit(r.Box,bounds.Width,bounds.Height);
-                        // Explicit keyboard edits may expand a short source mark
-                        // into a sentence; keep those at the selected font size.
-                        if(r.Manual){placement.ScaleX=1;placement.ScaleY=1;}
+                    TextWordPlacement placement;
+                    if(textPositions.TryGetValue(r.Id,out placement)) {
                         dc.PushTransform(new TranslateTransform(placement.X,placement.Y));
-                        dc.PushTransform(new ScaleTransform(placement.ScaleX,placement.ScaleY));
-                        dc.PushTransform(new TranslateTransform(-bounds.X,-bounds.Y));
-                        dc.DrawGeometry(textBrush,null,glyphs);
-                        dc.Pop();dc.Pop();dc.Pop();
+                        dc.DrawGeometry(textBrush,null,glyphs.Geometry);dc.Pop();
                     }
                 }
                 foreach(var t in r.Traces.Skip(showText?r.RecognizedCount:0))DrawTrace(dc,t);
-                if(Selected==r.Id){var b=r.Box;dc.DrawRectangle(null,new Pen(Brushes.DarkOrange,1),new Rect(b.X-5,b.Y-8,Math.Max(10,b.Right-b.X+10),Math.Max(10,b.Height+16)));}
+                if(Selected==r.Id){var b=DisplayBox(r);dc.DrawRectangle(null,new Pen(Brushes.DarkOrange,1),new Rect(b.X-5,b.Y-8,Math.Max(10,b.Right-b.X+10),Math.Max(10,b.Height+16)));}
             }
             if(Active!=null)DrawTrace(dc,Active);
             LastPaintMs=watch.Elapsed.TotalMilliseconds;
@@ -155,6 +166,8 @@ namespace Tracos {
         Exception reportedSaveError;
         Task manualSave=Task.FromResult(0);
         bool closing,saveNeeded;
+        ComboBox fontSelector,sizeSelector,layoutSelector;
+        bool syncingControls;
         DateTime lastSave=DateTime.UtcNow;
         public Editor(){
             Title="Traços — escrita para texto";Width=1180;Height=820;MinWidth=760;MinHeight=500;
@@ -169,9 +182,16 @@ namespace Tracos {
             var select=new CheckBox {Content="Selecionar",Margin=new Thickness(12,8,8,8)};select.Checked+=(s,e)=>surface.SelectMode=true;select.Unchecked+=(s,e)=>surface.SelectMode=false;toolbar.Children.Add(select);
             Add(toolbar,"Editar",()=>EditSelected());Add(toolbar,"Apagar seleção",DeleteSelected);
             var fonts=new ComboBox {Width=150,Margin=new Thickness(8,2,4,2),ItemsSource=new[]{"Segoe UI","Arial","Georgia","Consolas"},SelectedItem=document.Font};
-            fonts.SelectionChanged+=(s,e)=>{if(fonts.SelectedItem==null)return;history.Record(document);document.Font=fonts.SelectedItem.ToString();Changed();};toolbar.Children.Add(fonts);
+            fontSelector=fonts;
+            fonts.SelectionChanged+=(s,e)=>{if(syncingControls||fonts.SelectedItem==null)return;history.Record(document);document.Font=fonts.SelectedItem.ToString();Changed();};toolbar.Children.Add(fonts);
             var sizes=new ComboBox {Width=65,Margin=new Thickness(4,2,4,2),ItemsSource=new double[]{18,22,26,32,40},SelectedItem=document.FontSize};
-            sizes.SelectionChanged+=(s,e)=>{if(sizes.SelectedItem==null)return;history.Record(document);document.FontSize=(double)sizes.SelectedItem;Changed();};toolbar.Children.Add(sizes);
+            sizeSelector=sizes;
+            sizes.SelectionChanged+=(s,e)=>{if(syncingControls||sizes.SelectedItem==null)return;history.Record(document);document.FontSize=(double)sizes.SelectedItem;Changed();};toolbar.Children.Add(sizes);
+            var layout=new ComboBox {Width=145,Margin=new Thickness(4,2,4,2),ItemsSource=new[]{"Texto em linhas","Posição original"},SelectedIndex=document.Layout=="positions"?1:0};
+            layoutSelector=layout;
+            layout.SelectionChanged+=(s,e)=>{if(syncingControls)return;history.Record(document);document.Layout=layout.SelectedIndex==1?"positions":"lines";Changed();};toolbar.Children.Add(layout);
+            var ink=new CheckBox{Content="Tinta livre",Margin=new Thickness(8),ToolTip="Preserva fórmulas e desenhos sem converter em texto"};
+            ink.Checked+=(s,e)=>surface.FreeInk=true;ink.Unchecked+=(s,e)=>surface.FreeInk=false;toolbar.Children.Add(ink);
             var zoom=new Slider {Minimum=.5,Maximum=2,Value=1,Width=100,Margin=new Thickness(8),ToolTip="Zoom"};zoom.ValueChanged+=(s,e)=>surface.LayoutTransform=new ScaleTransform(zoom.Value,zoom.Value);toolbar.Children.Add(zoom);
             DockPanel.SetDock(status,Dock.Bottom);root.Children.Add(status);
             var hint=new TextBlock {Text="Escreva livremente. A conversão aguarda uma pausa para completar letras, pontos e acentos. Duplo clique com mouse para corrigir.",Margin=new Thickness(14,2,10,10),TextWrapping=TextWrapping.Wrap};DockPanel.SetDock(hint,Dock.Top);root.Children.Add(hint);
@@ -191,19 +211,25 @@ namespace Tracos {
             ResumePending();
             timer.Interval=TimeSpan.FromMilliseconds(80);timer.Tick+=(s,e)=>Tick();timer.Start();
             PreviewKeyDown+=(s,e)=>{if(Keyboard.Modifiers==ModifierKeys.Control&&e.Key==Key.Z){Restore(false);e.Handled=true;}else if(Keyboard.Modifiers==ModifierKeys.Control&&e.Key==Key.Y){Restore(true);e.Handled=true;}else if(e.Key==Key.Delete){DeleteSelected();e.Handled=true;}};
-            Closing+=(s,e)=>{try{if(!manualSave.Wait(5000))throw new TimeoutException("Exportação ainda em andamento.");persistence.Enqueue(DocumentSnapshots.Copy(document));if(!persistence.Flush(5000))throw new TimeoutException("Salvamento ainda em andamento.");}catch(Exception ex){MessageBox.Show("Não foi possível salvar a recuperação: "+ex.Message);e.Cancel=true;return;}closing=true;timer.Stop();scheduler.Dispose();persistence.Dispose();};
+            Closing+=(s,e)=>{try{surface.CommitPending();if(!manualSave.Wait(5000))throw new TimeoutException("Exportação ainda em andamento.");persistence.Enqueue(DocumentSnapshots.Copy(document));if(!persistence.Flush(5000))throw new TimeoutException("Salvamento ainda em andamento.");}catch(Exception ex){MessageBox.Show("Não foi possível salvar a recuperação: "+ex.Message);e.Cancel=true;return;}closing=true;timer.Stop();scheduler.Dispose();persistence.Dispose();};
             if(String.IsNullOrEmpty(status.Text))status.Text="Pronto · português brasileiro · reconhecimento local";
         }
         static void Add(Panel panel,string label,Action action){var b=new Button {Content=label,Padding=new Thickness(9,6,9,6),Margin=new Thickness(2)};b.Click+=(s,e)=>action();panel.Children.Add(b);}
-        void Changed(){surface.Document=document;surface.InvalidateVisual();saveNeeded=true;}
+        void Changed(){
+            syncingControls=true;
+            try{fontSelector.SelectedItem=document.Font;sizeSelector.SelectedItem=document.FontSize;layoutSelector.SelectedIndex=document.Layout=="positions"?1:0;}
+            finally{syncingControls=false;}
+            surface.SetDocument(document);saveNeeded=true;
+        }
         void InvalidateSession(){session=Guid.NewGuid().ToString();scheduler.Clear();dirty.Clear();deferred.Clear();latestWrittenRegion=null;}
         void ResumePending(){
-            foreach(var r in document.Regions.Where(r=>!r.Manual&&!r.Suppressed&&(String.IsNullOrEmpty(r.Text)||r.RecognizedCount<r.Traces.Count)))dirty[r.Id]=DateTime.UtcNow;
+            foreach(var r in document.Regions.Where(r=>!r.InkOnly&&!r.Manual&&!r.Suppressed&&(String.IsNullOrEmpty(r.Text)||r.RecognizedCount<r.Traces.Count)))dirty[r.Id]=DateTime.UtcNow;
             if(dirty.Count>0)activity.Ended(timeline.ElapsedMilliseconds);
         }
         void Collected(InkTrace trace){
             history.Record(document);
-            var r=Spatial.Append(document,trace);
+            var r=surface.FreeInk||surface.OverlapsProtectedText(trace)?Spatial.AppendInk(document,trace):Spatial.Append(document,trace);
+            if(r.InkOnly){Changed();status.Text=surface.FreeInk?"Tinta livre preservada.":"Anotação preservada. Use Editar para alterar o texto pronto.";return;}
             latestWrittenRegion=r.Id;
             scheduler.Cancel(r.Id);deferred.Remove(r.Id);
             dirty[r.Id]=DateTime.UtcNow;Changed();
@@ -216,7 +242,7 @@ namespace Tracos {
         void Tick(){
             if(!surface.Writing)foreach(var pair in dirty.ToArray()){
                 var r=document.Regions.FirstOrDefault(v=>v.Id==pair.Key);
-                if(r==null||r.Manual||r.Suppressed){dirty.Remove(pair.Key);deferred.Remove(pair.Key);continue;}
+                if(r==null||r.InkOnly||r.Manual||r.Suppressed){dirty.Remove(pair.Key);deferred.Remove(pair.Key);continue;}
                 // Returning to an old word for accents is active writing too;
                 // its persisted Closed flag must not shorten this pause.
                 if(!activity.Ready(timeline.ElapsedMilliseconds,r.Closed&&r.Id!=latestWrittenRegion,PenNear(r)))continue;
@@ -254,9 +280,14 @@ namespace Tracos {
         Region Selected(){return document.Regions.FirstOrDefault(r=>r.Id==surface.Selected);}
         void EditSelected(){var r=Selected();if(r!=null)Edit(r);}
         void Edit(Region r){
-            InvalidateSession();var dialog=new Window {Title="Corrigir texto",Width=480,Height=180,Owner=this,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+            InvalidateSession();var dialog=new Window {Title="Corrigir texto",Width=480,Height=230,Owner=this,WindowStartupLocation=WindowStartupLocation.CenterOwner};
             var panel=new DockPanel {Margin=new Thickness(12)};var input=new TextBox {Text=r.Text,FontSize=22,AcceptsReturn=true};var buttons=new StackPanel {Orientation=Orientation.Horizontal};DockPanel.SetDock(buttons,Dock.Bottom);panel.Children.Add(buttons);panel.Children.Add(input);dialog.Content=panel;
-            Add(buttons,"Aplicar",()=>{history.Record(document);r.Text=input.Text;r.Manual=true;r.Revision++;r.RecognizedCount=String.IsNullOrEmpty(r.Text)?0:r.Traces.Count;Changed();dialog.Close();});Add(buttons,"Cancelar",()=>dialog.Close());dialog.Loaded+=(s,e)=>input.Focus();dialog.ShowDialog();
+            if(r.Alternatives.Length>0){
+                var alternatives=new ComboBox {ItemsSource=r.Alternatives.Distinct().ToArray(),SelectedItem=r.Text,Margin=new Thickness(0,0,0,8),ToolTip="Alternativas devolvidas pelo reconhecedor"};
+                alternatives.SelectionChanged+=(s,e)=>{if(alternatives.SelectedItem!=null)input.Text=alternatives.SelectedItem.ToString();};
+                panel.Children.Remove(input);DockPanel.SetDock(alternatives,Dock.Top);panel.Children.Add(alternatives);panel.Children.Add(input);
+            }
+            Add(buttons,"Aplicar",()=>{history.Record(document);r.Text=input.Text;r.InkOnly=false;r.Manual=true;r.Revision++;r.RecognizedCount=String.IsNullOrEmpty(r.Text)?0:r.Traces.Count;Changed();dialog.Close();});Add(buttons,"Cancelar",()=>dialog.Close());dialog.Loaded+=(s,e)=>input.Focus();dialog.ShowDialog();ResumePending();
         }
         void DeleteSelected(){var r=Selected();if(r==null||surface.Writing)return;history.Record(document);InvalidateSession();document.Regions.Remove(r);surface.Selected=null;Changed();}
         async void SaveAs(){var dlg=new SaveFileDialog {Filter="Documento Traços (*.json)|*.json",FileName="Anotação.json"};if(dlg.ShowDialog(this)==true)try{var snapshot=DocumentSnapshots.Copy(document);manualSave=Task.Run(()=>Storage.Save(dlg.FileName,snapshot));await manualSave;status.Text="Documento salvo.";}catch(Exception e){manualSave=Task.FromResult(0);MessageBox.Show(e.Message);}}

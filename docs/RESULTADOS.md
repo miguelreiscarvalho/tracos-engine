@@ -1,5 +1,7 @@
 # Resultados observados
 
+Revisão atual: [vídeo 20-40-54, tipografia e revisão](ANALISE_VIDEO_204054.md), 60 verificações. Documentos anteriores abaixo são registros históricos de cada implementação, não garantias de cobertura atual de reconhecimento.
+
 Atualizações: [posicionamento](CORRECAO_POSICIONAMENTO.md), [pontuação/repertório](PONTUACAO_E_COBERTURA.md) e [fluidez/estabilidade](FLUIDEZ_E_ESTABILIDADE.md). Os 19 testes e a política por linha descritos abaixo registram o baseline inicial, não a revisão atual. Resultados atuais e limites estão nos documentos de cada correção.
 
 Execução local em 06/11/2026. Sem histórico de outras conversas. Não foram baixados pesos, instalados modelos ou treinadas redes.

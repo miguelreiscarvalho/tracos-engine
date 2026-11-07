@@ -1,53 +1,55 @@
-# fix: stabilize writing and remove UI serialization stalls
+# fix: compose uniform text lines and protect completed words
 
 ## Resumo
 
-A conversão aguardava somente 160 ms entre traços, enquanto histórico e reconhecimento serializavam o documento inteiro na interface, causando substituições prematuras e bloqueios. Este PR adia a apresentação até uma pausa estável, remove essas serializações do caminho de escrita e protege a folha de rolagem automática durante contato.
+O vídeo do usuário mostra frase fragmentada, fonte irregular e revisão acidental de palavras antigas. Este PR separa a composição tipográfica do reconhecimento: usa fonte sem escala por palavra, organiza blocos em linhas e restringe a janela de revisão; traços posteriores sobre texto pronto ficam como anotações.
 
 ## Mudanças principais
 
-- Espera adaptativa, tinta visível durante revisão e respostas diferidas sem repetir inferência.
-- Snapshots leves de histórico/região e autosave assíncrono com coalescência/flush ao fechar.
-- Bounds e geometria de tinta em cache; revisão de til/cedilha usa envelope da palavra.
-- Sem foco/BringIntoView/flicks na folha; coordenadas fixadas no começo do contato e viewport protegido durante escrita.
-- Harness de medição reproduzível e testes de pausa, fila, histórico e persistência.
+- Composição visual de linhas com baseline, fonte e espaços comuns; opção Posição original.
+- Remoção do encaixe/escala de glifos no renderer, mantendo cache de métricas e geometria.
+- Janela de revisão de 8 s; sobreposições posteriores preservadas em InkOnly.
+- Ferramenta Tinta livre para fórmulas/desenhos, sem prometer reconhecimento matemático.
+- Alternativas nativas no diálogo de correção; snapshots/persistência/tickets compatíveis com campos novos.
+- Finalização de traço ativo ao fechar antes do snapshot; análise com limites e testes.
 
 ## Motivação
 
-O terceiro vídeo mostrou oscilação durante palavras como `ficção`, travamentos e deslocamentos da folha. Medição local no documento confirmou aproximadamente 119 ms para cada snapshot JSON do histórico e 253 ms para cada preparação JSON de reconhecimento, executados na thread da UI.
+Reduzir latência não corrigia o modelo de apresentação. A escala independente dos glifos tornava o tamanho selecionado inconsistente, e a revisão geométrica sem expiração permitia que destaques posteriores alterassem palavras já convertidas.
 
 ## Como validar
 
 1. Executar `build.ps1 -Test` e `run.ps1` no PowerShell.
 2. Escrever na folha com mouse/caneta; levantar e observar conversão automática.
-3. Escrever `ficção` com vários traços, til e cedilha tardios. A tinta deve continuar durante a escrita e converter após pausa; não se garante transcrição correta em toda amostra.
+3. Escrever uma frase em uma linha com palavras de tamanhos diferentes; confirmar fonte uniforme, baseline e espaços tipográficos. Alternar Texto em linhas/Posição original.
 4. Desfazer conversão e conferir tinta original; Refazer deve reaplicar texto.
-5. Rolar pela barra, escrever perto do rodapé e observar se a posição se mantém. Testar continuação numa palavra antiga sem converter entre os acentos.
+5. Alterar fonte 26→18 e verificar mudança comum em todos os blocos. Após mais de 8 s, riscar/circular palavra antiga: o texto deve permanecer e o traço ficar como anotação. Acrescentar acento dentro da janela de revisão.
 6. Salvar, fechar e abrir; conferir texto e tinta preservados no JSON.
+7. Marcar Tinta livre e escrever fórmula/desenho; não deve entrar no motor. Selecionar palavra e Editar para ver alternativas nativas quando presentes.
 
 ## Testes
 
 - Compilação .NET Framework desktop e harness: executada sem avisos.
-- `build.ps1 -Test`: 52 verificações passaram; compilação sem avisos.
-- Microbenchmark local: histórico p50 118,9978 → 0,0713 ms; preparação completa antiga 252,7780 ms → cópia de lista da região próxima da resolução do cronômetro. Não são métricas de pen→pixel ou CPU total.
-- Pontuação anterior: 8/8 preservados. Quatro tentativas de `ficção` com todos os traços: 2/4 corretas; os dois erros restantes também ocorrem no motor nativo com entrada completa.
-- Smoke com mouse após rolagem: tinta antes de conversão, offset 655,68 mantido; undo e fechamento com flush preservaram textos/106 regiões/364 traços.
+- `build.ps1 -Test`: 60 verificações passaram; compilação sem avisos. Oito verificações novas de layout, revisão protegida e persistência.
+- Smoke com mouse: frase composta em linha, fonte 26→18 uniforme; traço sobre palavra antiga persistiu InkOnly e texto `representa` permaneceu intacto.
+- Desfazer restaurou fonte 26 na folha e no seletor; textos/55 regiões/118 traços originais preservados após retirar as marcas de teste. Pontuação anterior permanece 8/8 na amostra local.
+- Transcrição e imagens analisadas localmente; trechos incertos identificados, sem usar o áudio como autorização de sistema.
 - Caneta física, CER/WER em corpus humano, testes de longa duração e falha de energia: não executados.
 - Gradle/Android não se aplicam; não existe projeto Gradle. SDK moderno `dotnet` fora do PATH não bloqueou o compilador Framework disponível.
 
 ## Riscos / pontos de atenção
 
 - Dependência de Microsoft.Ink e modelo pt-BR instalado; motor proprietário/legado.
-- Snapshots compartilham traços concluídos sob contrato de imutabilidade; integração futura não deve modificar seus pontos in-place.
-- Pausas muito longas podem antecipar conversão; agrupamento e proximidade são heurísticos e dependem do dispositivo.
-- Bloqueios WPF corrigem causas conhecidas de rolagem; ausência de saltos em caneta física ainda precisa de novo teste.
-- Salvar/fechar agora coordena um worker; timeout/erro é reportado e fechamento é cancelado. Sem migração de formato JSON.
-- Precisão lexical do motor continua limitada; não se forçam palavras conhecidas do vídeo.
+- Agrupamento visual de linhas é heurístico, sem wrapping ou editor de parágrafo com cursor contínuo. Edição continua por região.
+- Janela de 8 s é política explícita; acentos posteriores exigem Editar. Sobreposições ambíguas dentro da janela ainda precisam de testes físicos.
+- Campos Layout/InkOnly são aditivos ao JSON v1; arquivos antigos adotam composição por linhas ao abrir, sem reprocessar conteúdo.
+- Matemática bidimensional continua pendente; Tinta livre preserva a geometria. Precisão lexical do motor permanece limitada.
+- Pesos, áudio, vídeo, transcrição e fixtures privadas permanecem fora do Git; não publicar material do usuário automaticamente.
 - Uma página/camada; sem migração de banco. JSON possui versão 1 e backup.
 
 ## Screenshots ou gravação
 
-Mudança visual: anexar captura da versão corrigida ao publicar o PR. Quadros extraídos do vídeo do usuário permanecem locais e não devem ser publicados automaticamente.
+Mudança visual: captura local em `local/review4-ui-after.png`; anexar somente com autorização para publicar o conteúdo do usuário. Quadros, áudio e transcrição permanecem locais.
 
 ## Checklist
 
@@ -60,4 +62,4 @@ Mudança visual: anexar captura da versão corrigida ao publicar o PR. Quadros e
 
 ## Publicação
 
-Branch: `codex/fix-writing-stability-and-ui-stalls`. Base local: `codex/fix-punctuation-and-diacritics` (`c714e54`). Nenhum remote configurado; comparação feita com a base local. Esta descrição está preparada para revisão; PR remoto não foi criado, pois não existe destino configurado.
+Branch: `codex/fix-line-typography-and-revision-boundaries`. Base local: `codex/fix-writing-stability-and-ui-stalls` (`2505ca4`). Nenhum remote configurado; comparação feita com a base local. Esta descrição está preparada para revisão; PR remoto não foi criado, pois não existe destino configurado.

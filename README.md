@@ -73,6 +73,12 @@ Formato: lista de objetos com `Name`, `Expected` e `Traces` (mesma representaç�
 
 ## Posicionamento local
 
+Atualização após análise do vídeo 20-40-54: o padrão agora é **Texto em linhas**, com fonte uniforme, baseline comum e espaços tipográficos. O modo **Posição original** mantém as âncoras individuais. Ambos usam o tamanho selecionado, sem deformar/comprimir cada palavra para caber no desenho. Detalhes e limites: [análise e correção](docs/ANALISE_VIDEO_204054.md).
+
+Textos convertidos têm janela de revisão de 8 s para pontos/acentos. Depois, escrever por cima preserva uma anotação separada; use Selecionar/Editar para mudar o texto pronto. O diálogo de correção oferece alternativas nativas quando disponíveis. Para fórmulas e desenhos, marque **Tinta livre** antes de escrever: os traços mantêm a forma original e não viram letras incorretas. Reconhecimento matemático estruturado ainda não foi implementado.
+
+As descrições de encaixe na caixa abaixo registram o comportamento da revisão anterior e foram substituídas pela apresentação descrita acima.
+
 A versão corrigida usa blocos locais de escrita, em vez de juntar a linha inteira. Uma lacuna ou mudança de linha encerra o bloco anterior; pontos, acentos e pequenos complementos sobrepostos podem rever somente o bloco correspondente. O texto automático ocupa a área dos traços originais, com redução de escala quando necessário, sem concatenar palavras distantes numa âncora antiga. Correção digitada manualmente mantém o tamanho de fonte escolhido e pode ultrapassar essa área.
 
 Documentos antigos mantêm o texto reconhecido e os traços: não são reprocessados automaticamente nem divididos retroativamente. Blocos recuperados ficam encerrados para não incorporar novas palavras. Para inspecionar o agrupamento em uma cópia, sem substituir o documento original:
